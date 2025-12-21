@@ -12,8 +12,8 @@ Aux_score1_H = 0.55
 Aux_score2_H = 0.3
 T_score_Y = 0.95
 L_score_Y = 0.8
-Aux_score1_Y = 0.55
-Aux_score2_Y = 0.3
+Aux_score1_Y = 0.3
+Aux_score2_Y = 0.2
 fig = plt.figure()
 ax = fig.add_subplot(1, 1, 1)
 '''
@@ -55,7 +55,7 @@ Regions = {"SR1":[[T_score_H, 1], [T_score_Y, 1]],
 rdf = ROOT.RDataFrame("Events", scatter_file)
 rdf_np = rdf.AsNumpy(["PNet_Y", "PNet_H"])
 print(rdf_np)
-ax.scatter(rdf_np["PNet_H"], rdf_np["PNet_Y"], s = 1, color='black', marker='o')
+#ax.scatter(rdf_np["PNet_H"], rdf_np["PNet_Y"], s = 1, color='black', marker='o')
 Ns = {"SR1": 0, "SR2": 0, "SB1": 0, "SB2": 0, "VS1": 0, "VS2": 0, "VB1": 0, "VS3": 0, "VS4": 0, "VB2": 0}
 for i in range(len(rdf_np["PNet_Y"])):
     pnet_y = rdf_np["PNet_H"][i]
@@ -77,7 +77,9 @@ for region in Regions:
         fontsize=12, color='red'
     )
 print(Ns)
-ax.set_title(f"1p1 MX-{MX} MY-{MY} scattering distribution")
-#ax.set_title(f"1p1 Region Defination")
-fig.savefig(f"Regions_MX{MX}_MY{MY}_1p1.png")
-#fig.savefig(f"Regions_1p1.png")
+ax.set_xticks([Aux_score2_H, Aux_score1_H, L_score_H, T_score_H ])
+ax.set_yticks([Aux_score1_Y, L_score_Y, T_score_Y ])
+#ax.set_title(f"1p1 MX-{MX} MY-{MY} scattering distribution")
+ax.set_title(f"1p1 Region Defination")
+#fig.savefig(f"Regions_MX{MX}_MY{MY}_1p1.png")
+fig.savefig(f"Regions_1p1.png")

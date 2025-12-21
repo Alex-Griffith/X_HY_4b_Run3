@@ -144,3 +144,4 @@ Float_t InvMass_PtEtaPhiM(ROOT::VecOps::RVec<Float_t> Pts, ROOT::VecOps::RVec<Fl
 	inv_mass = hardware::InvariantMass(Vectors);
 	return inv_mass;
 }
+

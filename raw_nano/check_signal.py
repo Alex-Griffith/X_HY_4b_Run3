@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
 
 def plot_mass_points(file):
     Ms = []
@@ -33,14 +34,19 @@ with open("GoodMassPoints.txt", "w") as f:
 
         
 
-fig = plt.figure(dpi=100, figsize = (10, 8))
+fig = plt.figure(dpi=100, figsize = (7.5, 6))
 ax = fig.add_subplot(1, 1, 1)
 ax.scatter(MXs, MYs, marker='*')
-ax.set_xlim(100, 10000)
-ax.set_ylim(50, 10000)
+ax.set_xlim(200, 5000)
+ax.set_ylim(50, 4000)
 #ax.set_xticks([300, 3000])
 ax.set_xscale("log")
 ax.set_yscale("log")
-ax.set_xlabel("MX(GeV)")
-ax.set_ylabel("MY(GeV)")
+ax.set_xlabel("MX(GeV)", loc = "right")
+ax.set_ylabel("MY(GeV)", loc  = "top")
+ax.set_xticks([200, 300, 1000, 4000])
+ax.set_yticks([60, 100, 1000, 3500])
+ax.xaxis.set_major_formatter(ScalarFormatter())
+ax.yaxis.set_major_formatter(ScalarFormatter())
+ax.set_title("NMSSM XHY4b Signal Mass Points")
 plt.savefig("signal_mass_points.png")

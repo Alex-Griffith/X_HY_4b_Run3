@@ -30,6 +30,41 @@ _rc_options = {
         'constraints': _generate_constraints(2)
     },
     '1x1': {
+        'form': '(@0+@1*x+@2*y+@3*x*y)',
+        'constraints': _generate_constraints(4)
+    },
+    '2x1': {
+        'form': '(@0+@1*x+@2*y+@3*x*y+@4*x**2+@5*y*x**2)',
+        'constraints': _generate_constraints(5)
+    },
+    '1x2': {
+        'form': '(@0+@1*x+@2*y+@3*x*y+@4*y**2+@5*x*y**2)',
+        'constraints': _generate_constraints(5)
+    },
+    '2x2': {
+        'form': '(@0+@1*x+@2*x**2)*(@3+@4*y*@5*y**2)',
+        'constraints': _generate_constraints(6)
+    },
+    '3x2': {
+        'form': '(@0+@1*x+@2*x**2+@3*x**3)*(@4+@5*y)',
+        'constraints': _generate_constraints(6)
+    }
+}
+'''
+_rc_options = {
+    '0x0': {
+        'form': '(@0)',
+        'constraints': _generate_constraints(1)
+    },
+    '1x0': {
+        'form': '(@0+@1*x)',
+        'constraints': _generate_constraints(2)
+    },
+    '0x1': {
+        'form': '(@0+@1*y)',
+        'constraints': _generate_constraints(2)
+    },
+    '1x1': {
         'form': '(@0+@1*x)*(@2+@3*y)',
         'constraints': _generate_constraints(4)
     },
@@ -46,7 +81,7 @@ _rc_options = {
         'constraints': _generate_constraints(6)
     }
 }
-
+'''
 def _select_signal(row, args):
     # Two arguments are passed to this function: the signal name (as it appears in the ledger), and the TF parameterization.
     signame = args[0]

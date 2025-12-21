@@ -1,6 +1,10 @@
 '''
 Script to set up the Combine workspace for the Run 3 XYH->4b test
 '''
+import sys
+for p in sys.path:
+    if "2D" in p:
+        print(p)
 from TwoDAlphabet import plot
 from TwoDAlphabet.twoDalphabet import MakeCard, TwoDAlphabet
 from TwoDAlphabet.alphawrap import BinnedDistribution, ParametricFunction
@@ -16,6 +20,41 @@ def _generate_constraints(nparams):
         out[i] = {"MIN":-500,"MAX":500}
     return out
 
+_rc_options = {
+    '0x0': {
+        'form': '(@0)',
+        'constraints': _generate_constraints(1)
+    },
+    '1x0': {
+        'form': '(@0+@1*x)',
+        'constraints': _generate_constraints(2)
+    },
+    '0x1': {
+        'form': '(@0+@1*y)',
+        'constraints': _generate_constraints(2)
+    },
+    '1x1': {
+        'form': '(@0+@1*x+@2*y+@3*x*y)',
+        'constraints': _generate_constraints(4)
+    },
+    '2x1': {
+        'form': '(@0+@1*x+@2*y+@3*x*y+@4*x**2+@5*y*x**2)',
+        'constraints': _generate_constraints(5)
+    },
+    '1x2': {
+        'form': '(@0+@1*x+@2*y+@3*x*y+@4*y**2+@5*x*y**2)',
+        'constraints': _generate_constraints(5)
+    },
+    '2x2': {
+        'form': '(@0+@1*x+@2*x**2)*(@3+@4*y*@5*y**2)',
+        'constraints': _generate_constraints(6)
+    },
+    '3x2': {
+        'form': '(@0+@1*x+@2*x**2+@3*x**3)*(@4+@5*y)',
+        'constraints': _generate_constraints(6)
+    }
+}
+'''
 _rc_options = {
     '0x0': {
         'form': '(@0)',
@@ -46,7 +85,7 @@ _rc_options = {
         'constraints': _generate_constraints(6)
     }
 }
-
+'''
 def _select_signal(row, args):
     # Two arguments are passed to this function: the signal name (as it appears in the ledger), and the TF parameterization.
     signame = args[0]
@@ -181,7 +220,7 @@ def make_card(name='test', signal='', tf=''):
         f'{signal}_{tf}_area'   # Name of the subdirectory in the main 2DAlphabet workspace for this TF parameterization
     )
 
-def FitDiagnostics(name='test', signal='', tf='', defMinStrat=0, extra='--robustHesse 0', rMin=-1, rMax=10, setParams={}, verbosity=2):
+def FitDiagnostics(name='test', signal='', tf='', defMinStrat=1, extra='--robustHesse 0', rMin=-1, rMax=10, setParams={"QCD_Rc_2p1_1x1_par0":0.03,"QCD_Rc_2p1_1x1_par1":-0.08,"QCD_Rc_2p1_1x1_par2":0.2,"QCD_Rc_2p1_1x1_par3":-0.4,"QCD_Rc_1p1_1x1_par0":0.09,"QCD_Rc_1p1_1x1_par1":11,"QCD_Rc_1p1_1x1_par2":0.8,"QCD_Rc_1p1_1x1_par3":-37}, verbosity=2):
     working_area = f'{name}_workspace'
     twoD = TwoDAlphabet(working_area, f'{working_area}/runConfig.json',loadPrevious = True)
     subset = twoD.ledger.select(_select_signal, signal, tf)

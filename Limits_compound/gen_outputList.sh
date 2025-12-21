@@ -2,4 +2,22 @@
 file_dir=/store/user/$USER/XHY4bRun3_division_compound/
 eosls $file_dir > outputList/output_tmp.txt
 sed "s@^@root://cmseos.fnal.gov/$file_dir@" outputList/output_tmp.txt > outputList/output_division_compound.txt
+
+dir=/store/user/$USER/XHY4bRun3_limits_1p1/
+eosls $dir > outputList/output_limits_1p1_tmp.txt
+sed "s@^@root://cmseos.fnal.gov/$dir@" outputList/output_limits_1p1_tmp.txt > outputList/output_limits_1p1.txt
+
+dir=/store/user/$USER/XHY4bRun3_limits_2p1/
+eosls $dir > outputList/output_limits_2p1_tmp.txt
+sed "s@^@root://cmseos.fnal.gov/$dir@" outputList/output_limits_2p1_tmp.txt > outputList/output_limits_2p1.txt
+
+dir=/store/user/$USER/XHY4bRun3_limits_All1p1_Only2p1/
+eosls $dir > outputList/output_tmp.txt
+sed "s@^@root://cmseos.fnal.gov/$dir@" outputList/output_tmp.txt > outputList/output_limits_All1p1_Only2p1.txt
+
+
+dir=/store/user/$USER/XHY4bRun3_limits_All2p1_Only1p1/
+eosls $dir > outputList/output_tmp.txt
+sed "s@^@root://cmseos.fnal.gov/$dir@" outputList/output_tmp.txt > outputList/output_limits_All2p1_Only1p1.txt
+
 rm outputList/*tmp*

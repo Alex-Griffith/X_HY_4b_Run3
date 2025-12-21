@@ -20,7 +20,7 @@ for subprocess in ${subprocesses[@]}; do
     dataset=$(jq -r --arg year "$year" --arg process "$process" --arg subprocess "$subprocess" '.[$year][$process][$subprocess].Dataset' $json_file)     
     echo TRYING TO GET DATASET OF SUBPROCESS: $subprocess FROM $dataset
 	Command="file dataset="$dataset
-	data_name=./files/"$year"__"$process"__"$subprocess"
+	data_name=./files_xrootd/"$year"__"$process"__"$subprocess"
 	#echo $Command
 	echo dasgoclient -query "$Command"
 	#dasgoclient -query "$Command" | tee "$data_name"_tmp.txt

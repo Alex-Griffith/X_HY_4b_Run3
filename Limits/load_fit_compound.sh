@@ -1,0 +1,10 @@
+#while IFS= read -r line; do
+#    read MX MY <<< $line
+#    python load_fit_TH.py --mx $MX --my $MY --mode 2p1 --type signal
+#done < ../raw_nano/GoodMassPoints.txt
+rm Templates/*
+python load_fit_TH_compound.py --mx $1 --my $2 --mode All1p1 --type all
+python load_fit_TH_compound.py --mx $1 --my $2 --mode All2p1 --type all
+mv Templates/Templates_All1p1_all.root Templates/Templates_1p1_all.root
+mv Templates/Templates_All2p1_all.root Templates/Templates_2p1_all.root
+#python load_fit_TH.py --mx 1000 --my 300 --mode 2p1 --type bkg

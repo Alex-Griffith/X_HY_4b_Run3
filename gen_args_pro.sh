@@ -36,7 +36,7 @@ for file in $files; do
     if [[ $file != *"2022EE"*"Signal"* ]]; then
         pass=0
     fi
-    if [[ $file == *"Signal"* || $file == *"TTBar"* || $file == *"WZ"* || $file == *"Data"* ]]; then
+    if [[ $file == *"Signal"* || $file == *"TTBar"* || $file == *"QCD"* || $file == *"Data"* ]]; then
         pass=1
     fi
     if [[ $debug == 0 ]]; then
@@ -46,6 +46,13 @@ for file in $files; do
         if [[ ( $file == *"JetMET"* || $file == *"TTBar"* || $file == *"Signal"* ) ]]; then
             pass=1
         fi
+    fi
+    pass=0
+    #if [[ ( $file == *"Signal"* || $file == *"TTBar"* || $file == *"WZ"* || $file == *"Data"* ) ]]; then
+    #if [[  $file == *"2024"* || ( $file != *"Signal"* && $file != *"TTBar"* && $file != *"Data"* && $file != *"QCD"* ) ]]; then
+    if [[ $file == *"Data"* ]]; then
+        echo $file
+        pass=1
     fi
     if [[ $operation == *"selection"* && $pass == 1 ]]; then
         extras=("-s nom" "-s JES__up" "-s JES__down" "-s JER__up" "-s JER__down")
@@ -63,6 +70,8 @@ for file in $files; do
                     ./gen_args.sh $file 2023 $output $n_files "$extra"
                 elif [[ "$file" == *"2023BPix__"* ]]; then
                     ./gen_args.sh $file 2023BPix $output $n_files "$extra"
+                elif [[ "$file" == *"2024__"* ]]; then
+                    ./gen_args.sh $file 2024 $output $n_files "$extra"
                 fi
             fi
             if [[ $file == *"Data"* || $file == *"QCD"* || $file == *"DiBoson"* || $file == *"SingleTop"* || $file == *"Higgs"* ]]; then
@@ -79,6 +88,8 @@ for file in $files; do
                 ./gen_args.sh $file 2023 $output $n_files
             elif [[ "$file" == *"2023BPix__"* ]]; then
                 ./gen_args.sh $file 2023BPix $output $n_files
+            elif [[ "$file" == *"2024__"* ]]; then
+                ./gen_args.sh $file 2024 $output $n_files
             fi
         fi
     fi

@@ -15,7 +15,10 @@ parser.add_argument('--type', type=str, action='store', required=False)
 parser.add_argument('--mx', type=str, action='store', required=False)
 parser.add_argument('--my', type=str, action='store', required=False)
 args = parser.parse_args()
-
+if "1p1" in args.mode:
+    hist_mode = "1p1"
+elif "2p1" in args.mode:
+    hist_mode = "2p1"
 with open("raw_nano/Luminosity.json") as f:
     lumi_json = json.load(f)
 
@@ -27,17 +30,8 @@ with open("raw_nano/Datasets_signal.json") as f:
 #----------------------------- set bins, variable columns and other configs---------------------------------------------------------------------
 with open(f"outputList/output_division_{args.mode}.txt") as f:
     lines = f.readlines()
-    data_files =[ line.strip() for line in lines if "Templates" not in line and "log" not in line]
-VB1_files = [data_file for data_file in data_files if "VB1" in data_file and "nom" in data_file ]
-#for VB1_file in VB1_files:
-#    print(VB1_file)
-#exit()
-template_files = []
-for data_file in data_files:
-    data_files_part = data_file.partition(f"{args.mode}/")
-    template_file = data_files_part[0] + data_files_part[1] + "Templates_" + data_files_part[2]
-    template_files.append(template_file)
-systs = ["JES__up", "JES__down", "JER__up", "JER__down", "PileUp_Corr_up", "PileUp_Corr_down", "nominal"]
+    template_files =[ line.strip() for line in lines if "Templates" in line and "log" not in line and args.mode in line]
+systs = ["JES__up", "JES__down", "JER__up", "JER__down", "PileUp_Corr_up", "PileUp_Corr_down", "TriggerSF_up", "TriggerSF_down", "Pdfweight_up", "Pdfweight_down", "nominal"]
 if args.type == "signal":
     processes = {"SignalMC_XHY4b": [f"MX-{args.mx}_MY-{args.my}"]}
 
@@ -60,7 +54,6 @@ print(processes)
 #processes = ["JetMET", "MC_TTBarJets", "MC_WZJets", "SignalMC_XHY4b" ]
 
 regions = ["SR1", "SR2", "SB1", "SB2", "VS1", "VS2", "VS3", "VS4", "VB1", "VB2"]
-regions = ["SR1", "SR2", "SB1", "SB2", "VS1", "VS2", "VS3", "VS4", "VB1", "VB2"]
 years = ["2022", "2022EE", "2023", "2023BPix"]
 MJY_bins = array.array("d", np.linspace(0, 5000, 501) )
 MJJ_bins = array.array("d", np.linspace(0, 5000, 501) )
@@ -73,20 +66,20 @@ for year in years:
         for region in regions:
             hists[year]["JetMET"][region] = {}
             for syst in systs:
-                if syst == "nominal":
-                    hists[year]["JetMET"][region][syst] = hist_base.Clone(f"{year}__JetMET__{region}__{syst}")
+                if syst == "nominal" or "Pdfweight" in syst:
+                    hists[year]["JetMET"][region][syst] = hist_base.Clone(f"{year}__JetMET__{region}_{hist_mode}__{syst}")
                 else:
-                    hists[year]["JetMET"][region][syst] = hist_base.Clone(f"{year}__JetMET__{region}__Y{year}_{syst}")
+                    hists[year]["JetMET"][region][syst] = hist_base.Clone(f"{year}__JetMET__{region}_{hist_mode}__Y{year}_{syst}")
     if "SignalMC_XHY4b" in processes:
         for subprocess in processes["SignalMC_XHY4b"]:
             hists[year][f"SignalMC_XHY4b_{subprocess}"] = {}        
             for region in regions:
                 hists[year][f"SignalMC_XHY4b_{subprocess}"][region] = {}
                 for syst in systs:
-                    if syst == "nominal":
-                        hists[year][f"SignalMC_XHY4b_{subprocess}"][region][syst] = hist_base.Clone(f"{year}__SignalMC_XHY4b_{subprocess}__{region}__{syst}")
+                    if syst == "nominal" or "Pdfweight" in syst:
+                        hists[year][f"SignalMC_XHY4b_{subprocess}"][region][syst] = hist_base.Clone(f"{year}__SignalMC_XHY4b_{subprocess}__{region}_{hist_mode}__{syst}")
                     else:
-                        hists[year][f"SignalMC_XHY4b_{subprocess}"][region][syst] = hist_base.Clone(f"{year}__SignalMC_XHY4b_{subprocess}__{region}__Y{year}_{syst}")
+                        hists[year][f"SignalMC_XHY4b_{subprocess}"][region][syst] = hist_base.Clone(f"{year}__SignalMC_XHY4b_{subprocess}__{region}_{hist_mode}__Y{year}_{syst}")
         
     for process in processes:
         if "SignalMC" in process:
@@ -95,14 +88,12 @@ for year in years:
         for region in regions:
             hists[year][process][region] = {}
             for syst in systs:
-                if syst == "nominal":
-                    hists[year][process][region][syst] = hist_base.Clone(f"{year}__{process}__{region}__{syst}")
+                if syst == "nominal" or "Pdfweight" in syst:
+                    hists[year][process][region][syst] = hist_base.Clone(f"{year}__{process}__{region}_{hist_mode}__{syst}")
                 else:
-                    hists[year][process][region][syst] = hist_base.Clone(f"{year}__{process}__{region}__Y{year}_{syst}")
+                    hists[year][process][region][syst] = hist_base.Clone(f"{year}__{process}__{region}_{hist_mode}__Y{year}_{syst}")
 #print(hists)
 #print(VB1_files)
-BKG_fileWeight, BKG_totalWeight = load_weight(VB1_files, years, processes, signal_json, Xsec_json)
-print(BKG_totalWeight)
 if args.type == "bkg" or args.type == "all":
     processes["JetMET"] = {}
 for f_name in template_files:
@@ -121,15 +112,15 @@ for f_name in template_files:
                     if good == 0:
                         continue
                     print(f_name)
-                    for region in regions:
-                        if region in f_name:
-                            f = ROOT.TFile.Open(f_name, "READ")
-                            for key in f.GetListOfKeys():
-                                hist = key.ReadObj()
-                                if isinstance(hist, ROOT.TH2):  
-                                    hist_name = hist.GetName()
-                                    print(hist_name) 
-                                    loaded = 0
+                    f = ROOT.TFile.Open(f_name, "READ")
+                    for key in f.GetListOfKeys():
+                        hist = key.ReadObj()
+                        if isinstance(hist, ROOT.TH2):  
+                            hist_name = hist.GetName()
+                            print(hist_name) 
+                            loaded = 0
+                            for region in regions:
+                                if region in hist_name:
                                     for syst in systs:
                                         if hist_name.endswith(syst):
                                             print(f"{year}_{process}_{region}_{syst}")
@@ -138,11 +129,9 @@ for f_name in template_files:
                                                     
                                                     if subprocess  + "_" in f_name:
                                                         if "SignalMC" in process:
-                                                            hist.Scale(1/1000 / BKG_totalWeight[year][process][subprocess])
+                                                            hist.Scale(1/1000)
                                                             hists[year][f"{process}_{subprocess}"][region][syst].Add(hist)
-                                                            print("TEST") 
                                                         else:
-                                                            hist.Scale(1/BKG_totalWeight[year][process][subprocess])
                                                             hists[year][process][region][syst].Add(hist)
                                                         loaded = 1
                                                         break
@@ -151,7 +140,9 @@ for f_name in template_files:
                                                 hists[year][process][region][syst].Add(hist)
                                                 loaded = 1
                                     print(f"HIST LOADING STATUS:  {loaded}")
-                            f.Close()
+                        del hist
+                    f.Close()
+                    del f
 
 hists_allyears = {}
 for process in hists[years[0]]:
@@ -159,11 +150,25 @@ for process in hists[years[0]]:
     for region in regions:
         hists_allyears[process][region] = {}
         for syst in systs:
-            hists_allyears[process][region][syst] = hist_base.Clone(f"Allyears__{process}__{region}__{syst}")
+            if syst == "nominal" or "Pdfweight" in syst:
+                hists_allyears[process][region][syst] = hist_base.Clone(f"Allyears__{process}__{region}_{hist_mode}__{syst}")
+            else:
+                for year in years:
+                    syst_byyear = f"Y{year}_{syst}"
+                    hists_allyears[process][region][syst_byyear] = hist_base.Clone(f"Allyears__{process}__{region}_{hist_mode}__{syst_byyear}")
             #hists_allyears[process][region][syst] = hist_base.Clone(f"Allyears_{process}_{region}_{syst}")
+        for syst_byyear in hists_allyears[process][region]:
+            year_syst = syst_byyear.partition("_")[0][1:]
+            root_syst = syst_byyear[(len(year_syst) + 2):]
+            print(syst_byyear, year_syst, root_syst)
             for year in years:
-                hists_allyears[process][region][syst].Add(hists[year][process][region][syst])
-
+                if syst_byyear == "nominal" or "Pdfweight" in syst_byyear:
+                    hists_allyears[process][region][syst_byyear].Add(hists[year][process][region][syst_byyear])
+                else:
+                    if year == year_syst:
+                        hists_allyears[process][region][syst_byyear].Add(hists[year][process][region][root_syst])
+                    else:
+                        hists_allyears[process][region][syst_byyear].Add(hists[year][process][region]["nominal"])
 
 
 
@@ -182,8 +187,8 @@ for year in years:
                 hists[year][process][region][syst].Write()
 
 for process in hists_allyears:
-    for region in regions:
-        for syst in systs:
+    for region in hists_allyears[process]:
+        for syst in hists_allyears[process][region]:
             hists_allyears[process][region][syst].Write()
 
 f.Close()
