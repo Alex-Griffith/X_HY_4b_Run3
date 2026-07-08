@@ -48,7 +48,7 @@ for file in $files; do
         fi
     fi
     if [[ $operation == *"selection"* && $pass == 1 ]]; then
-        extras=("-s nom" "-s JES__up" "-s JES__down" "-s JER__up" "-s JER__down")
+        extras=("-s nom" "-s JES__up" "-s JES__down" "-s JER__up" "-s JER__down" "-s JMS__up" "-s JMS__down" "-s JMR__up" "-s JMR__down")
         if [[ $debug == 1 ]]; then
             extras=("-s nom")
         fi

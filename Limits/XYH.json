@@ -66,6 +66,8 @@
                 "Y2022_lumi_13p6TeV",
                 "Y2022_JES_",
                 "Y2022_JER_",
+                "Y2022_JMS_",
+                "Y2022_JMR_",
                 "Y2022_PileUp_Corr"
             ],
             "SCALE": 1.0,
@@ -79,6 +81,8 @@
                 "Y2022_lumi_13p6TeV",
                 "Y2022_JES_",
                 "Y2022_JER_",
+                "Y2022_JMS_",
+                "Y2022_JMR_",
                 "Y2022_PileUp_Corr"
             ],
             "SCALE": 1.0,
@@ -92,6 +96,8 @@
                 "Y2022_lumi_13p6TeV",
                 "Y2022_JES_",
                 "Y2022_JER_",
+                "Y2022_JMS_",
+                "Y2022_JMR_",
                 "Y2022_PileUp_Corr"
             ],
             "SCALE": 1.0,
@@ -105,6 +111,8 @@
                 "Y2022EE_lumi_13p6TeV",
                 "Y2022EE_JES_",
                 "Y2022EE_JER_",
+                "Y2022EE_JMS_",
+                "Y2022EE_JMR_",
                 "Y2022EE_PileUp_Corr"
             ],
             "SCALE": 1.0,
@@ -118,6 +126,8 @@
                 "Y2022EE_lumi_13p6TeV",
                 "Y2022EE_JES_",
                 "Y2022EE_JER_",
+                "Y2022EE_JMS_",
+                "Y2022EE_JMR_",
                 "Y2022EE_PileUp_Corr"
             ],
             "SCALE": 1.0,
@@ -131,6 +141,8 @@
                 "Y2022EE_lumi_13p6TeV",
                 "Y2022EE_JES_",
                 "Y2022EE_JER_",
+                "Y2022EE_JMS_",
+                "Y2022EE_JMR_",
                 "Y2022EE_PileUp_Corr"
             ],
             "SCALE": 1.0,
@@ -144,6 +156,8 @@
                 "Y2023_lumi_13p6TeV",
                 "Y2023_JES_",
                 "Y2023_JER_",
+                "Y2023_JMS_",
+                "Y2023_JMR_",
                 "Y2023_PileUp_Corr"
             ],
             "SCALE": 1.0,
@@ -157,6 +171,8 @@
                 "Y2023_lumi_13p6TeV",
                 "Y2023_JES_",
                 "Y2023_JER_",
+                "Y2023_JMS_",
+                "Y2023_JMR_",
                 "Y2023_PileUp_Corr"
             ],
             "SCALE": 1.0,
@@ -170,6 +186,8 @@
                 "Y2023_lumi_13p6TeV",
                 "Y2023_JES_",
                 "Y2023_JER_",
+                "Y2023_JMS_",
+                "Y2023_JMR_",
                 "Y2023_PileUp_Corr"
             ],
             "SCALE": 1.0,
@@ -183,6 +201,8 @@
                 "Y2023BPix_lumi_13p6TeV",
                 "Y2023BPix_JES_",
                 "Y2023BPix_JER_",
+                "Y2023BPix_JMS_",
+                "Y2023BPix_JMR_",
                 "Y2023BPix_PileUp_Corr"
             ],
             "SCALE": 1.0,
@@ -196,6 +216,8 @@
                 "Y2023BPix_lumi_13p6TeV",
                 "Y2023BPix_JES_",
                 "Y2023BPix_JER_",
+                "Y2023BPix_JMS_",
+                "Y2023BPix_JMR_",
                 "Y2023BPix_PileUp_Corr"
             ],
             "SCALE": 1.0,
@@ -209,6 +231,8 @@
                 "Y2023BPix_lumi_13p6TeV",
                 "Y2023BPix_JES_",
                 "Y2023BPix_JER_",
+                "Y2023BPix_JMS_",
+                "Y2023BPix_JMR_",
                 "Y2023BPix_PileUp_Corr"
             ],
             "SCALE": 1.0,
@@ -274,6 +298,56 @@
             "SIGMA": 1.0
         },
         "Y2023BPix_JER_": {
+            "UP": "PATH_LOCAL/FILE:HIST_UP",
+            "DOWN": "PATH_LOCAL/FILE:HIST_DOWN",
+            "SIGMA": 1.0
+        },
+        "Y2022_JMS_": {
+            "UP": "PATH_LOCAL/FILE:HIST_UP",
+            "DOWN": "PATH_LOCAL/FILE:HIST_DOWN",
+            "SIGMA": 1.0
+        },
+        "Y2022_JMR_": {
+            "UP": "PATH_LOCAL/FILE:HIST_UP",
+            "DOWN": "PATH_LOCAL/FILE:HIST_DOWN",
+            "SIGMA": 1.0
+        },
+        "Y2022EE_JMS_": {
+            "UP": "PATH_LOCAL/FILE:HIST_UP",
+            "DOWN": "PATH_LOCAL/FILE:HIST_DOWN",
+            "SIGMA": 1.0
+        },
+        "Y2022EE_JMR_": {
+            "UP": "PATH_LOCAL/FILE:HIST_UP",
+            "DOWN": "PATH_LOCAL/FILE:HIST_DOWN",
+            "SIGMA": 1.0
+        },
+        "Y2023_JMS_": {
+            "UP": "PATH_LOCAL/FILE:HIST_UP",
+            "DOWN": "PATH_LOCAL/FILE:HIST_DOWN",
+            "SIGMA": 1.0
+        },
+        "Y2023_JMR_": {
+            "UP": "PATH_LOCAL/FILE:HIST_UP",
+            "DOWN": "PATH_LOCAL/FILE:HIST_DOWN",
+            "SIGMA": 1.0
+        },
+        "Y2023BPix_JMS_": {
+            "UP": "PATH_LOCAL/FILE:HIST_UP",
+            "DOWN": "PATH_LOCAL/FILE:HIST_DOWN",
+            "SIGMA": 1.0
+        },
+        "Y2023BPix_JMR_": {
+            "UP": "PATH_LOCAL/FILE:HIST_UP",
+            "DOWN": "PATH_LOCAL/FILE:HIST_DOWN",
+            "SIGMA": 1.0
+        },
+        "Y2024_JMS_": {
+            "UP": "PATH_LOCAL/FILE:HIST_UP",
+            "DOWN": "PATH_LOCAL/FILE:HIST_DOWN",
+            "SIGMA": 1.0
+        },
+        "Y2024_JMR_": {
             "UP": "PATH_LOCAL/FILE:HIST_UP",
             "DOWN": "PATH_LOCAL/FILE:HIST_DOWN",
             "SIGMA": 1.0

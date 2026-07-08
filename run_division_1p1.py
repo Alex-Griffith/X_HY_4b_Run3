@@ -23,7 +23,7 @@ regions = ["SR1", "SR2", "SB1", "SB2", "VS1", "VS2", "VS3", "VS4", "VB1", "VB2"]
 file_basename=os.path.basename(args.dataset).replace(".txt", f"_n-{args.n_files}_i-{args.i_job}.root")
 
 #Checking what JME correction the file has, cause we want to do the nom correction differently
-JME_systs = ["nom", "JES__up", "JES__down", "JER__up", "JER__down"]
+JME_systs = ["nom", "JES__up", "JES__down", "JER__up", "JER__down", "JMS__up", "JMS__down", "JMR__up", "JMR__down"]
 for ele in JME_systs:
     if ele in file_basename:
         JME_syst = ele
