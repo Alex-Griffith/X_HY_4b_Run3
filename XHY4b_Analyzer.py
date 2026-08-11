@@ -7,6 +7,7 @@ from TIMBER.Analyzer import Correction, CutGroup, ModuleWorker, analyzer, Node
 from TIMBER.Tools.AutoNoiseFilter import AutoNoiseFilter as AutoNF
 from TIMBER.Tools.Common import CompileCpp, OpenJSON
 import TIMBER.Tools.AutoJME_correctionlib as AutoJME
+import TIMBER.Tools.AutoJetID_correctionlib as AutoJetID
 import TIMBER.Tools.AutoPU_correctionlib as AutoPU
 import TIMBER.Tools.AutoBTagging_correctionlib as AutoBTagging
 
@@ -57,6 +58,13 @@ class XHY4b_Analyzer:
             self.corr_year = "2023_Summer23"
         elif self.year == "2023BPix":
             self.corr_year = "2023_Summer23BPix"
+        elif self.year == "2024":
+            self.corr_year = "2024_Summer24" 
+
+        if self.year == "2024":
+            self.nanoAOD_ver = 15
+        else:
+            self.nanoAOD_ver = 12
 
         #Setting default if no input args are provided
         if self.dataset == None:
@@ -68,7 +76,7 @@ class XHY4b_Analyzer:
             return
 
         #Setting isData flag 
-        if "Data" in self.dataset:
+        if "Data" in self.dataset or "JetMET" in self.dataset:
             self.isData = 1
         elif "MC" in self.dataset:
             self.isData = 0
@@ -146,6 +154,7 @@ class XHY4b_Analyzer:
         if self.isData == 1:
             self.totalWeight[var] = float(self.analyzer.GetActiveNode().DataFrame.Count().GetValue())
         else:
+            #self.totalWeight[var] = float(self.analyzer.GetActiveNode().DataFrame.Count().GetValue())
             self.totalWeight[var] = float(self.analyzer.GetActiveNode().DataFrame.Sum(weight).GetValue())
         print(self.totalWeight[var])
     
@@ -243,9 +252,18 @@ class XHY4b_Analyzer:
     #main selection function for mode 1p1
     def selection_1p1(self, JME_syst = "nom"):
         kin_syst = "nom" if JME_syst in ["JMS__up", "JMS__down", "JMR__up", "JMR__down"] else JME_syst
-        AutoJME.AutoJME(self.analyzer, ["Jet", "FatJet"], self.corr_year, self.data_era, True)
+        AutoJetID.AutoJetID(self.analyzer, self.corr_year, ["Jet","FatJet"], nanoAOD_ver = self.nanoAOD_ver)
+        if self.year != "2024":
+            AutoJME.AutoJME(self.analyzer, ["Jet", "FatJet"], self.corr_year, self.data_era, True)
+        else:
+            AutoJME.AutoJME(self.analyzer, ["Jet"], self.corr_year, self.data_era, True)
+            self.analyzer.Define(f"FatJet_pt_{kin_syst}", "FatJet_pt")
+            self.analyzer.Define(f"FatJet_msoftdrop_{kin_syst}", "FatJet_msoftdrop")
         if not (self.isData == 1):
-            AutoPU.AutoPU(self.analyzer, self.corr_year)
+            if self.year != "2024":
+                AutoPU.AutoPU(self.analyzer, self.corr_year)
+            else:
+                 AutoPU.AutoPU(self.analyzer, "2023_Summer23BPix")  
             genW = Correction('genW',"cpp_modules/genW.cc",corrtype='corr')
             evalargs = {
                     "genWeight": "genWeight",
@@ -254,12 +272,12 @@ class XHY4b_Analyzer:
                     "sumW": "1"
             }
             self.analyzer.AddCorrection(genW, evalargs)
+            self.analyzer.AddCorrection(
+                Correction('Pdfweight','TIMBER/Framework/include/PDFweight_uncert.h',[self.analyzer.lhaid],corrtype='uncert')
+            )
 
         self.register_weight("JERCJetVeto")
         #Doing the skimming for 1p1
-        self.analyzer.AddCorrection(
-            Correction('Pdfweight','TIMBER/Framework/include/PDFweight_uncert.h',[self.analyzer.lhaid],corrtype='uncert')
-        ) 
         AutoNF(self.analyzer, self.year, self.isData)
         self.register_weight("NoiseFilterCut")
 
@@ -286,15 +304,15 @@ class XHY4b_Analyzer:
 
 
         #FatJet quality
-        self.analyzer.Cut("IDCut","FatJet_jetId[0] >= 2 && FatJet_jetId[1] >= 2")
+        self.analyzer.Cut("IDCut","FatJet_jetId_corr[0] >= 2 && FatJet_jetId_corr[1] >= 2")
         self.register_weight("FatJetID")
         
         #FatJet Pt
-        self.analyzer.Cut("PtCut", f"FatJet_pt_{kin_syst}[0] > 450 && FatJet_pt_{kin_syst}[1] > 450")
+        #self.analyzer.Cut("PtCut", f"FatJet_pt_{JME_syst}[0] > 450 && FatJet_pt_{JME_syst}[1] > 450")
+        self.analyzer.Cut("PtCut", f"FatJet_pt_{kin_syst}.at(0) > 450 && FatJet_pt_{kin_syst}.at(1) > 450")
         self.register_weight("FatJetPt")
-
         #FatJet Mass
-        self.analyzer.Cut("MassCut", f"FatJet_msoftdrop_{kin_syst}[0] > 40 && FatJet_msoftdrop_{kin_syst}[1] > 40" )
+        self.analyzer.Cut("MassCut", f"FatJet_msoftdrop_{kin_syst}.at(0) > 40 && FatJet_msoftdrop_{kin_syst}.at(1) > 40" )
         self.register_weight("FatJetMass")
 
         #FatJet Delta R
@@ -302,7 +320,8 @@ class XHY4b_Analyzer:
         self.register_weight("DeltaEta")
         
         #Higgs Match
-        self.analyzer.Define("idxH", f"higgsMassMatchingRegMass(FatJet_globalParT3_massCorrGeneric[0], FatJet_globalParT3_massCorrGeneric[1], \"{self.year}\", \"{JME_syst}\")")
+        self.analyzer.Define("FatJet_regressedMass", "FatJet_mass * FatJet_globalParT3_massCorrX2p * (1.f - FatJet_rawFactor)")
+        self.analyzer.Define("idxH", f"higgsMassMatchingRegMass(FatJet_regressedMass.at(0), FatJet_regressedMass.at(1), \"{JME_syst}\")")
         self.analyzer.Define("idxY", "1 - idxH")
         self.analyzer.Cut("HiggsCut", "idxH >= 0") 
         self.register_weight("HiggsMatch")
@@ -311,7 +330,7 @@ class XHY4b_Analyzer:
     
 
         #Defining a bunch of variables for later use
-        self.analyzer.Define("MassHiggsCandidate", f"regMassSyst(FatJet_globalParT3_massCorrGeneric[idxH], \"{self.year}\", \"{JME_syst}\")")
+        self.analyzer.Define("MassHiggsCandidate", f"regMassSyst(FatJet_regressedMass[idxH], \"{JME_syst}\")")
         self.analyzer.Define("PtHiggsCandidate", f"FatJet_pt_{kin_syst}[idxH]")
         self.analyzer.Define("EtaHiggsCandidate", "FatJet_eta[idxH]")
         self.analyzer.Define("PhiHiggsCandidate", "FatJet_phi[idxH]")
@@ -329,16 +348,20 @@ class XHY4b_Analyzer:
         self.register_weight("MassJJ")
 
 
-        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{kin_syst}[0]")
+        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{kin_syst}.at(0)")
         self.analyzer.Define("leadingFatJetPhi", "FatJet_phi[0]")
         self.analyzer.Define("leadingFatJetEta", "FatJet_eta[0]")
-        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{kin_syst}[0]")
+        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{kin_syst}.at(0)")
         
         self.analyzer.Define("MJY", "MassYCandidate")
         self.analyzer.Define("MJJ", "MassLeadingTwoFatJets")
         self.analyzer.Define("MY", "MassYCandidate")
         self.analyzer.Define("MX", "MassLeadingTwoFatJets")
 
+        if not (self.isData == 1):
+            self.analyzer.AddCorrection(
+                Correction('TriggerSF','cpp_modules/Trigger_SF.cc',["raw_nano/trigger_1p1_SFs.json", self.year], corrtype='weight'), {"pt":"leadingFatJetPt", "mass":"MX"}
+            ) 
         #Making weight columns
         self.analyzer.MakeWeightCols(name = "All")
         
@@ -352,9 +375,18 @@ class XHY4b_Analyzer:
     #main selection function for mode 2p1
     def selection_2p1(self, JME_syst = "nom"):
         kin_syst = "nom" if JME_syst in ["JMS__up", "JMS__down", "JMR__up", "JMR__down"] else JME_syst
-        AutoJME.AutoJME(self.analyzer, ["Jet", "FatJet"], self.corr_year, self.data_era, True)
+        AutoJetID.AutoJetID(self.analyzer, self.corr_year, ["Jet","FatJet"], nanoAOD_ver = self.nanoAOD_ver)
+        if self.year != "2024":
+            AutoJME.AutoJME(self.analyzer, ["Jet", "FatJet"], self.corr_year, self.data_era, True)
+        else:
+            AutoJME.AutoJME(self.analyzer, ["Jet"], self.corr_year, self.data_era, True)
+            self.analyzer.Define(f"FatJet_pt_{kin_syst}", "FatJet_pt")
+            self.analyzer.Define(f"FatJet_msoftdrop_{kin_syst}", "FatJet_msoftdrop")
         if not (self.isData == 1):
-            AutoPU.AutoPU(self.analyzer, self.corr_year)
+            if self.year != "2024":
+                AutoPU.AutoPU(self.analyzer, self.corr_year)
+            else:
+                 AutoPU.AutoPU(self.analyzer, "2023_Summer23BPix")  
             genW    = Correction('genW',"cpp_modules/genW.cc",corrtype='corr')
             evalargs = {
                     "genWeight": "genWeight",
@@ -363,11 +395,11 @@ class XHY4b_Analyzer:
                     "sumW": "1"
             }
             self.analyzer.AddCorrection(genW, evalargs)
+            self.analyzer.AddCorrection(
+                Correction('Pdfweight','TIMBER/Framework/include/PDFweight_uncert.h',[self.analyzer.lhaid],corrtype='uncert')
+            ) 
 
         self.register_weight("JERCJetVeto")
-        self.analyzer.AddCorrection(
-            Correction('Pdfweight','TIMBER/Framework/include/PDFweight_uncert.h',[self.analyzer.lhaid],corrtype='uncert')
-        ) 
 
         AutoNF(self.analyzer, self.year, self.isData)
         self.register_weight("NoiseFilterCut")
@@ -394,12 +426,13 @@ class XHY4b_Analyzer:
         self.register_weight("SkimOf2p1")
         
         #Looking for Higgs Jet
-        self.analyzer.Define("idxJH", f"FindIdxJHRegMass(FatJet_globalParT3_massCorrGeneric, \"{self.year}\", \"{JME_syst}\", 100, 150)")
+        self.analyzer.Define("FatJet_regressedMass", "FatJet_mass * FatJet_globalParT3_massCorrX2p * (1.f - FatJet_rawFactor)")
+        self.analyzer.Define("idxJH", f"FindIdxJHRegMass(FatJet_regressedMass, \"{JME_syst}\", 100, 150)")
         self.analyzer.Cut("HiggsMassCut", f"idxJH >= 0")
         self.register_weight("HiggsMatch")
 
         
-        self.analyzer.Define("MassHiggsCandidate", f"regMassSyst(FatJet_globalParT3_massCorrGeneric[idxJH], \"{self.year}\", \"{JME_syst}\")")
+        self.analyzer.Define("MassHiggsCandidate", f"regMassSyst(FatJet_regressedMass[idxJH], \"{JME_syst}\")")
         self.analyzer.Define("PtHiggsCandidate", f"FatJet_pt_{kin_syst}[idxJH]")
         self.analyzer.Define("EtaHiggsCandidate", "FatJet_eta[idxJH]")
         self.analyzer.Define("PhiHiggsCandidate", "FatJet_phi[idxJH]") 
@@ -410,7 +443,7 @@ class XHY4b_Analyzer:
         self.analyzer.Cut("HiggsEtaCut", "std::abs(EtaHiggsCandidate) < 2.5")
         self.register_weight("HiggsEta")
 
-        self.analyzer.Cut("FatJetIDCut","FatJet_jetId[idxJH] >= 2 ")
+        self.analyzer.Cut("FatJetIDCut","FatJet_jetId_corr[idxJH] >= 2 ")
         self.register_weight("FatJetID")
 
 
@@ -423,13 +456,13 @@ class XHY4b_Analyzer:
 
         #Looking for Y Jets
         self.analyzer.Define("idxJY", f"FindIdxJY(Jet_eta, Jet_phi, FatJet_eta[idxJH], FatJet_phi[idxJH], Jet_btagPNetB, 0.8)")
-        self.analyzer.Cut("IdxJYCut", "idxJY[0] >= 0 && idxJY[1] >= 0")
+        self.analyzer.Cut("IdxJYCut", "idxJY.at(0) >= 0 && idxJY.at(1) >= 0")
 
 
         self.register_weight("JYMatch")
         #Defining a bunch of variables for later use
-        self.analyzer.Define("idxJY0", "idxJY[0]")
-        self.analyzer.Define("idxJY1", "idxJY[1]")  
+        self.analyzer.Define("idxJY0", "idxJY.at(0)")
+        self.analyzer.Define("idxJY1", "idxJY.at(1)")  
         self.analyzer.Define("PtJY0", f"Jet_pt_{kin_syst}[idxJY0]")
         self.analyzer.Define("PtJY1", f"Jet_pt_{kin_syst}[idxJY1]")
         self.analyzer.Define("EtaJY0", "Jet_eta[idxJY0]")
@@ -446,7 +479,7 @@ class XHY4b_Analyzer:
 
 
 
-        self.analyzer.Cut("YJetIDCut", "Jet_jetId[idxJY0] >= 2 && Jet_jetId[idxJY1] >= 2")
+        self.analyzer.Cut("YJetIDCut", "Jet_jetId_corr[idxJY0] >= 2 && Jet_jetId_corr[idxJY1] >= 2")
         self.register_weight("YJetID")
         self.analyzer.Cut("YPtCut", "PtJY0 >= 50 && PtJY0 >= 50")
         self.register_weight("YPt")
@@ -473,11 +506,15 @@ class XHY4b_Analyzer:
         self.analyzer.Define("MY", "MassYCandidate")
         self.analyzer.Define("MX", "MassJJH")
 
-        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{kin_syst}[0]")
-        self.analyzer.Define("leadingFatJetPhi", "FatJet_phi[0]")
-        self.analyzer.Define("leadingFatJetEta", "FatJet_eta[0]")
-        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{kin_syst}[0]")
+        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{kin_syst}.at(0)")
+        self.analyzer.Define("leadingFatJetPhi", "FatJet_phi.at(0)")
+        self.analyzer.Define("leadingFatJetEta", "FatJet_eta.at(0)")
+        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{kin_syst}.at(0)")
         #Making weight columns
+        if not (self.isData == 1):
+            self.analyzer.AddCorrection(
+                Correction('TriggerSF','cpp_modules/Trigger_SF.cc',["raw_nano/trigger_2p1_SFs.json", self.year], corrtype='weight'), {"pt":"leadingFatJetPt", "mass":"MX"}
+            ) 
         self.analyzer.MakeWeightCols(name = "All")
         
         print(f"DEBUG: { self.analyzer.GetActiveNode().DataFrame.Count().GetValue()}") 
@@ -485,9 +522,18 @@ class XHY4b_Analyzer:
 
 
     def selection_compound(self, JME_syst = "nom"):
-        AutoJME.AutoJME(self.analyzer, ["Jet", "FatJet"], self.corr_year, self.data_era, True)
+        AutoJetID.AutoJetID(self.analyzer, self.corr_year, ["Jet","FatJet"], nanoAOD_ver = self.nanoAOD_ver)
+        if self.year != "2024":
+            AutoJME.AutoJME(self.analyzer, ["Jet", "FatJet"], self.corr_year, self.data_era, True)
+        else:
+            AutoJME.AutoJME(self.analyzer, ["Jet"], self.corr_year, self.data_era, True)
+            self.analyzer.Define(f"FatJet_pt_{JME_syst}", "FatJet_pt")
+            self.analyzer.Define(f"FatJet_msoftdrop_{JME_syst}", "FatJet_msoftdrop")
         if not (self.isData == 1):
-            AutoPU.AutoPU(self.analyzer, self.corr_year)
+            if self.year != "2024":
+                AutoPU.AutoPU(self.analyzer, self.corr_year)
+            else:
+                 AutoPU.AutoPU(self.analyzer, "2023_Summer23BPix")  
             genW    = Correction('genW',"cpp_modules/genW.cc",corrtype='corr')
             evalargs = {
                     "genWeight": "genWeight",
@@ -496,11 +542,11 @@ class XHY4b_Analyzer:
                     "sumW": "1"
             }
             self.analyzer.AddCorrection(genW, evalargs)
+            self.analyzer.AddCorrection(
+                Correction('Pdfweight','TIMBER/Framework/include/PDFweight_uncert.h',[self.analyzer.lhaid],corrtype='uncert')
+            ) 
 
         self.register_weight("JERCJetVeto")
-        self.analyzer.AddCorrection(
-            Correction('Pdfweight','TIMBER/Framework/include/PDFweight_uncert.h',[self.analyzer.lhaid],corrtype='uncert')
-        ) 
 
         AutoNF(self.analyzer, self.year, self.isData)
         self.register_weight("NoiseFilterCut")
@@ -521,51 +567,51 @@ class XHY4b_Analyzer:
         self.analyzer.Cut("TriggerCut", triggerCut)
         self.register_weight("TriggerCut")
 
-        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{JME_syst}[0]")
-        self.analyzer.Define("leadingFatJetPhi", "FatJet_phi[0]")
-        self.analyzer.Define("leadingFatJetEta", "FatJet_eta[0]")
-        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{JME_syst}[0]")
+        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{JME_syst}.at(0)")
+        self.analyzer.Define("leadingFatJetPhi", "FatJet_phi.at(0)")
+        self.analyzer.Define("leadingFatJetEta", "FatJet_eta.at(0)")
+        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{JME_syst}.at(0)")
 
         #################################1p1####################################################################
         self.analyzer.Define("flag1p1_SkimCut", "SkimFlag == 1 || SkimFlag == 3") 
 
         #FatJet quality
-        self.analyzer.Define("flag1p1_IDCut","FatJet_jetId[0] >= 2 && FatJet_jetId[1] >= 2")
+        self.analyzer.Define("flag1p1_IDCut","flag1p1_SkimCut == 0 ? false : FatJet_jetId_corr.at(0) >= 2 && FatJet_jetId_corr.at(1) >= 2")
         
         #FatJet Pt
-        self.analyzer.Define("flag1p1_PtCut", f"FatJet_pt_{JME_syst}[0] > 450 && FatJet_pt_{JME_syst}[1] > 450")
+        self.analyzer.Define("flag1p1_PtCut", f"flag1p1_SkimCut == 0 ? false : FatJet_pt_{JME_syst}.at(0) > 450 && FatJet_pt_{JME_syst}.at(1) > 450")
 
         #FatJet Mass
-        self.analyzer.Define("flag1p1_MassCut", f"FatJet_msoftdrop_{JME_syst}[0] > 40 && FatJet_msoftdrop_{JME_syst}[1] > 40" )
+        self.analyzer.Define("flag1p1_MassCut", f"flag1p1_SkimCut == 0 ? false : FatJet_msoftdrop_{JME_syst}.at(0) > 40 && FatJet_msoftdrop_{JME_syst}.at(1) > 40" )
 
         #FatJet Delta R
-        self.analyzer.Define("flag1p1_DeltaEtaCut", "abs(FatJet_eta[0] - FatJet_eta[1]) < 1.3")
+        self.analyzer.Define("flag1p1_DeltaEtaCut", "flag1p1_SkimCut == 0 ? false : abs(FatJet_eta.at(0) - FatJet_eta.at(1)) < 1.3")
         
         #Higgs Match
-        self.analyzer.Define("val1p1_idxH_try", f"higgsMassMatching(FatJet_msoftdrop_{JME_syst}[0], FatJet_msoftdrop_{JME_syst}[1])")
-        self.analyzer.Define("val1p1_idxY_try", "1 - val1p1_idxH_try")
-        self.analyzer.Define("val1p1_idxH", "std::max(0, val1p1_idxH_try)")
-        self.analyzer.Define("val1p1_idxY", "std::min(1, val1p1_idxY_try)")
-        self.analyzer.Define("flag1p1_HiggsCut", "val1p1_idxH_try >= 0") 
+        self.analyzer.Define("val1p1_idxH_try", f"flag1p1_SkimCut == 0 ? 0 : higgsMassMatching(FatJet_msoftdrop_{JME_syst}.at(0), FatJet_msoftdrop_{JME_syst}.at(1))")
+        self.analyzer.Define("val1p1_idxY_try", "flag1p1_SkimCut == 0 ? 0 : 1 - val1p1_idxH_try")
+        self.analyzer.Define("val1p1_idxH", "flag1p1_SkimCut == 0 ? 0 : std::max(0, val1p1_idxH_try)")
+        self.analyzer.Define("val1p1_idxY", "flag1p1_SkimCut == 0 ? 0 : std::min(1, val1p1_idxY_try)")
+        self.analyzer.Define("flag1p1_HiggsCut", "flag1p1_SkimCut == 0 ? false : val1p1_idxH_try >= 0") 
 
 
     
         #Defining a bunch of variables for later use
-        self.analyzer.Define("val1p1_MassHiggsCandidate",f"FatJet_msoftdrop_{JME_syst}[val1p1_idxH]")
-        self.analyzer.Define("val1p1_PtHiggsCandidate", f"FatJet_pt_{JME_syst}[val1p1_idxH]")
-        self.analyzer.Define("val1p1_EtaHiggsCandidate", "FatJet_eta[val1p1_idxH]")
-        self.analyzer.Define("val1p1_PhiHiggsCandidate", "FatJet_phi[val1p1_idxH]")
-        self.analyzer.Define("val1p1_PNet_H", "FatJet_particleNet_XbbVsQCD[val1p1_idxH]")
+        self.analyzer.Define("val1p1_MassHiggsCandidate",f"flag1p1_SkimCut == 0 ? 0.f : FatJet_msoftdrop_{JME_syst}[val1p1_idxH]")
+        self.analyzer.Define("val1p1_PtHiggsCandidate", f"flag1p1_SkimCut == 0 ? 0.f : FatJet_pt_{JME_syst}[val1p1_idxH]")
+        self.analyzer.Define("val1p1_EtaHiggsCandidate", "flag1p1_SkimCut == 0 ? 0.f : FatJet_eta[val1p1_idxH]")
+        self.analyzer.Define("val1p1_PhiHiggsCandidate", "flag1p1_SkimCut == 0 ? 0.f : FatJet_phi[val1p1_idxH]")
+        self.analyzer.Define("val1p1_PNet_H", "flag1p1_SkimCut == 0 ? 0.f : FatJet_particleNet_XbbVsQCD[val1p1_idxH]")
         
-        self.analyzer.Define("val1p1_MassYCandidate", f"FatJet_msoftdrop_{JME_syst}[val1p1_idxY]")
-        self.analyzer.Define("val1p1_PtYCandidate", f"FatJet_pt_{JME_syst}[val1p1_idxY]")
-        self.analyzer.Define("val1p1_EtaYCandidate", "FatJet_eta[val1p1_idxY]")
-        self.analyzer.Define("val1p1_PhiYCandidate", "FatJet_phi[val1p1_idxY]")
-        self.analyzer.Define("val1p1_PNet_Y", "FatJet_particleNet_XbbVsQCD[val1p1_idxY]")
+        self.analyzer.Define("val1p1_MassYCandidate", f"flag1p1_SkimCut == 0 ? 0.f : FatJet_msoftdrop_{JME_syst}[val1p1_idxY]")
+        self.analyzer.Define("val1p1_PtYCandidate", f"flag1p1_SkimCut == 0 ? 0.f : FatJet_pt_{JME_syst}[val1p1_idxY]")
+        self.analyzer.Define("val1p1_EtaYCandidate", "flag1p1_SkimCut == 0 ? 0.f : FatJet_eta[val1p1_idxY]")
+        self.analyzer.Define("val1p1_PhiYCandidate", "flag1p1_SkimCut == 0 ? 0.f : FatJet_phi[val1p1_idxY]")
+        self.analyzer.Define("val1p1_PNet_Y", "flag1p1_SkimCut == 0 ? 0.f : FatJet_particleNet_XbbVsQCD[val1p1_idxY]")
         
         #X(JJ) Mass
-        self.analyzer.Define(f"val1p1_MassLeadingTwoFatJets", "InvMass_PtEtaPhiM({val1p1_PtHiggsCandidate, val1p1_PtYCandidate}, {val1p1_EtaHiggsCandidate, val1p1_EtaYCandidate}, {val1p1_PhiHiggsCandidate, val1p1_PhiYCandidate}, {val1p1_MassHiggsCandidate, val1p1_MassYCandidate})")
-        self.analyzer.Define("flag1p1_MJJCut", "val1p1_MassLeadingTwoFatJets > 200")
+        self.analyzer.Define(f"val1p1_MassLeadingTwoFatJets", "flag1p1_SkimCut == 0 ? 0.f : InvMass_PtEtaPhiM({val1p1_PtHiggsCandidate, val1p1_PtYCandidate}, {val1p1_EtaHiggsCandidate, val1p1_EtaYCandidate}, {val1p1_PhiHiggsCandidate, val1p1_PhiYCandidate}, {val1p1_MassHiggsCandidate, val1p1_MassYCandidate})")
+        self.analyzer.Define("flag1p1_MJJCut", "flag1p1_SkimCut == 0 ? false : val1p1_MassLeadingTwoFatJets > 200")
 
 
         
@@ -579,66 +625,66 @@ class XHY4b_Analyzer:
         self.analyzer.Define("flag2p1_SkimCut", "SkimFlag == 2 || SkimFlag == 3")
         
         #Looking for Higgs Jet
-        self.analyzer.Define("val2p1_idxJH_try", f"FindIdxJH(FatJet_msoftdrop_{JME_syst}, 100, 150, 10000)")
-        self.analyzer.Define("val2p1_idxJH", f"std::max(val2p1_idxJH_try, 0)")
-        self.analyzer.Define("flag2p1_HiggsMassCut", f"val2p1_idxJH_try >= 0")
+        self.analyzer.Define("val2p1_idxJH_try", f"flag2p1_SkimCut == 0 ? 0 : FindIdxJH(FatJet_msoftdrop_{JME_syst}, 100, 150, 10000)")
+        self.analyzer.Define("val2p1_idxJH", f"flag2p1_SkimCut == 0 ? 0 : std::max(val2p1_idxJH_try, 0)")
+        self.analyzer.Define("flag2p1_HiggsMassCut", f"flag2p1_SkimCut == 0 ? false : val2p1_idxJH_try >= 0")
 
         
-        self.analyzer.Define("val2p1_MassHiggsCandidate", f"FatJet_msoftdrop_{JME_syst}[val2p1_idxJH]")
-        self.analyzer.Define("val2p1_PtHiggsCandidate", f"FatJet_pt_{JME_syst}[val2p1_idxJH]")
-        self.analyzer.Define("val2p1_EtaHiggsCandidate", "FatJet_eta[val2p1_idxJH]")
-        self.analyzer.Define("val2p1_PhiHiggsCandidate", "FatJet_phi[val2p1_idxJH]") 
-        self.analyzer.Define("val2p1_PNet_H", "FatJet_particleNet_XbbVsQCD[val2p1_idxJH]")
+        self.analyzer.Define("val2p1_MassHiggsCandidate", f"flag2p1_SkimCut == 0 ? 0.f : FatJet_msoftdrop_{JME_syst}[val2p1_idxJH]")
+        self.analyzer.Define("val2p1_PtHiggsCandidate", f"flag2p1_SkimCut == 0 ? 0.f : FatJet_pt_{JME_syst}[val2p1_idxJH]")
+        self.analyzer.Define("val2p1_EtaHiggsCandidate", "flag2p1_SkimCut == 0 ? 0.f : FatJet_eta[val2p1_idxJH]")
+        self.analyzer.Define("val2p1_PhiHiggsCandidate", "flag2p1_SkimCut == 0 ? 0.f : FatJet_phi[val2p1_idxJH]") 
+        self.analyzer.Define("val2p1_PNet_H", "flag2p1_SkimCut == 0 ? 0.f : FatJet_particleNet_XbbVsQCD[val2p1_idxJH]")
         
 
         #Higgs Jet Quality
-        self.analyzer.Define("flag2p1_HiggsEtaCut", "std::abs(val2p1_EtaHiggsCandidate) < 2.5")
+        self.analyzer.Define("flag2p1_HiggsEtaCut", "flag2p1_SkimCut == 0 ? false : std::abs(val2p1_EtaHiggsCandidate) < 2.5")
 
-        self.analyzer.Define("flag2p1_FatJetIDCut","FatJet_jetId[val2p1_idxJH] >= 2 ")
+        self.analyzer.Define("flag2p1_FatJetIDCut","flag2p1_SkimCut == 0 ? false : FatJet_jetId_corr[val2p1_idxJH] >= 2 ")
 
 
-        self.analyzer.Define("flag2p1_PtCut", f"val2p1_PtHiggsCandidate > 300")
+        self.analyzer.Define("flag2p1_PtCut", f"flag2p1_SkimCut == 0 ? false : val2p1_PtHiggsCandidate > 300")
         
 
         #Defining several regions depending on the B tagging score for the Y Jets
-        self.analyzer.Define("val2p1_DeltaR_HJ", f"DeltaR(Jet_eta, Jet_phi, FatJet_eta[val2p1_idxJH], FatJet_phi[val2p1_idxJH])")
+        #self.analyzer.Define("val2p1_DeltaR_HJ", f" DeltaR(Jet_eta, Jet_phi, FatJet_eta[val2p1_idxJH], FatJet_phi[val2p1_idxJH])")
 
         #Looking for Y Jets
-        self.analyzer.Define("val2p1_idxJY_try", f"FindIdxJY(Jet_eta, Jet_phi, val2p1_EtaHiggsCandidate, val2p1_PhiHiggsCandidate, Jet_btagPNetB, 0.8)")
-        self.analyzer.Define("val2p1_idxJY", "RVec<int>({std::max(val2p1_idxJY_try[0], 0), std::max(val2p1_idxJY_try[1], 0)})")
-        self.analyzer.Define("flag2p1_IdxJYCut", "val2p1_idxJY_try[0] >= 0 && val2p1_idxJY_try[1] >= 0")
+        self.analyzer.Define("val2p1_idxJY_try", f"flag2p1_SkimCut == 0 ? RVec<int>({0, 0}) : FindIdxJY(Jet_eta, Jet_phi, val2p1_EtaHiggsCandidate, val2p1_PhiHiggsCandidate, Jet_btagPNetB, 0.8)")
+        self.analyzer.Define("val2p1_idxJY", "flag2p1_SkimCut == 0 ? RVec<int>({0, 0}) : RVec<int>({std::max(val2p1_idxJY_try.at(0), 0), std::max(val2p1_idxJY_try.at(1), 0)})")
+        self.analyzer.Define("flag2p1_IdxJYCut", "flag2p1_SkimCut == 0 ? false : val2p1_idxJY_try.at(0) >= 0 && val2p1_idxJY_try.at(1) >= 0")
 
 
         #Defining a bunch of variables for later use
-        self.analyzer.Define("val2p1_idxJY0", "val2p1_idxJY[0]")
-        self.analyzer.Define("val2p1_idxJY1", "val2p1_idxJY[1]")  
-        self.analyzer.Define("val2p1_PtJY0", f"Jet_pt_{JME_syst}[val2p1_idxJY0]")
-        self.analyzer.Define("val2p1_PtJY1", f"Jet_pt_{JME_syst}[val2p1_idxJY1]")
-        self.analyzer.Define("val2p1_EtaJY0", "Jet_eta[val2p1_idxJY0]")
-        self.analyzer.Define("val2p1_EtaJY1", "Jet_eta[val2p1_idxJY1]")
-        self.analyzer.Define("val2p1_PhiJY0", "Jet_phi[val2p1_idxJY0]")
-        self.analyzer.Define("val2p1_PhiJY1", "Jet_phi[val2p1_idxJY1]")
-        self.analyzer.Define("val2p1_MassJY0", f"Jet_mass_{JME_syst}[val2p1_idxJY0]")
-        self.analyzer.Define("val2p1_MassJY1", f"Jet_mass_{JME_syst}[val2p1_idxJY1]")
-        self.analyzer.Define("val2p1_PNet_Y0", "Jet_btagPNetB[val2p1_idxJY0]")
-        self.analyzer.Define("val2p1_PNet_Y1", "Jet_btagPNetB[val2p1_idxJY1]")
-        self.analyzer.Define("val2p1_PNet_Ymin", "std::min(val2p1_PNet_Y0, val2p1_PNet_Y1)")
-        self.analyzer.Define("val2p1_PNet_Y", "std::max(val2p1_PNet_Y0, val2p1_PNet_Y1)")
+        self.analyzer.Define("val2p1_idxJY0", "flag2p1_SkimCut == 0 ? 0 : val2p1_idxJY.at(0)")
+        self.analyzer.Define("val2p1_idxJY1", "flag2p1_SkimCut == 0 ? 0 : val2p1_idxJY.at(1)")  
+        self.analyzer.Define("val2p1_PtJY0", f"flag2p1_SkimCut == 0 ? 0.f : Jet_pt_{JME_syst}[val2p1_idxJY0]")
+        self.analyzer.Define("val2p1_PtJY1", f"flag2p1_SkimCut == 0 ? 0.f : Jet_pt_{JME_syst}[val2p1_idxJY1]")
+        self.analyzer.Define("val2p1_EtaJY0", "flag2p1_SkimCut == 0 ? 0.f : Jet_eta[val2p1_idxJY0]")
+        self.analyzer.Define("val2p1_EtaJY1", "flag2p1_SkimCut == 0 ? 0.f : Jet_eta[val2p1_idxJY1]")
+        self.analyzer.Define("val2p1_PhiJY0", "flag2p1_SkimCut == 0 ? 0.f : Jet_phi[val2p1_idxJY0]")
+        self.analyzer.Define("val2p1_PhiJY1", "flag2p1_SkimCut == 0 ? 0.f : Jet_phi[val2p1_idxJY1]")
+        self.analyzer.Define("val2p1_MassJY0", f"flag2p1_SkimCut == 0 ? 0.f : Jet_mass_{JME_syst}[val2p1_idxJY0]")
+        self.analyzer.Define("val2p1_MassJY1", f"flag2p1_SkimCut == 0 ? 0.f : Jet_mass_{JME_syst}[val2p1_idxJY1]")
+        self.analyzer.Define("val2p1_PNet_Y0", "flag2p1_SkimCut == 0 ? 0.f : Jet_btagPNetB[val2p1_idxJY0]")
+        self.analyzer.Define("val2p1_PNet_Y1", "flag2p1_SkimCut == 0 ? 0.f : Jet_btagPNetB[val2p1_idxJY1]")
+        self.analyzer.Define("val2p1_PNet_Ymin", "flag2p1_SkimCut == 0 ? 0.f : std::min(val2p1_PNet_Y0, val2p1_PNet_Y1)")
+        self.analyzer.Define("val2p1_PNet_Y", "flag2p1_SkimCut == 0 ? 0.f : std::max(val2p1_PNet_Y0, val2p1_PNet_Y1)")
 
 
 
 
-        self.analyzer.Define("flag2p1_YJetIDCut", "Jet_jetId[val2p1_idxJY0] >= 2 && Jet_jetId[val2p1_idxJY1] >= 2")
-        self.analyzer.Define("flag2p1_YPtCut", "val2p1_PtJY0 >= 50 && val2p1_PtJY0 >= 50")
-        self.analyzer.Define("flag2p1_YEtaCut", "std::abs(val2p1_EtaJY0) < 2.5 && std::abs(val2p1_EtaJY1) < 2.5")
+        self.analyzer.Define("flag2p1_YJetIDCut", " flag2p1_SkimCut == 0 ? false : Jet_jetId_corr[val2p1_idxJY0] >= 2 && Jet_jetId_corr[val2p1_idxJY1] >= 2")
+        self.analyzer.Define("flag2p1_YPtCut", "flag2p1_SkimCut == 0 ? false : val2p1_PtJY0 >= 50 && val2p1_PtJY0 >= 50")
+        self.analyzer.Define("flag2p1_YEtaCut", "flag2p1_SkimCut == 0 ? false : std::abs(val2p1_EtaJY0) < 2.5 && std::abs(val2p1_EtaJY1) < 2.5")
         
         
-        self.analyzer.Define("val2p1_MassYCandidate", "InvMass_PtEtaPhiM({val2p1_PtJY0, val2p1_PtJY1}, {val2p1_EtaJY0, val2p1_EtaJY1}, {val2p1_PhiJY0, val2p1_PhiJY1}, {val2p1_MassJY0, val2p1_MassJY1} )" )
-        self.analyzer.Define("val2p1_MassJJH", "InvMass_PtEtaPhiM({val2p1_PtHiggsCandidate, val2p1_PtJY0, val2p1_PtJY1}, {val2p1_EtaHiggsCandidate, val2p1_EtaJY0, val2p1_EtaJY1}, {val2p1_PhiHiggsCandidate, val2p1_PhiJY0, val2p1_PhiJY1}, {val2p1_MassHiggsCandidate, val2p1_MassJY0, val2p1_MassJY1})")
-        self.analyzer.Define("flag2p1_MJJCut", "val2p1_MassJJH > 200")
+        self.analyzer.Define("val2p1_MassYCandidate", "flag2p1_SkimCut == 0 ? 0.f : InvMass_PtEtaPhiM({val2p1_PtJY0, val2p1_PtJY1}, {val2p1_EtaJY0, val2p1_EtaJY1}, {val2p1_PhiJY0, val2p1_PhiJY1}, {val2p1_MassJY0, val2p1_MassJY1} )" )
+        self.analyzer.Define("val2p1_MassJJH", "flag2p1_SkimCut == 0 ? 0.f : InvMass_PtEtaPhiM({val2p1_PtHiggsCandidate, val2p1_PtJY0, val2p1_PtJY1}, {val2p1_EtaHiggsCandidate, val2p1_EtaJY0, val2p1_EtaJY1}, {val2p1_PhiHiggsCandidate, val2p1_PhiJY0, val2p1_PhiJY1}, {val2p1_MassHiggsCandidate, val2p1_MassJY0, val2p1_MassJY1})")
+        self.analyzer.Define("flag2p1_MJJCut", "flag2p1_SkimCut == 0 ? 0.f : val2p1_MassJJH > 200")
      
-        self.analyzer.Define("flag2p1_PNet_YminCut", "val2p1_PNet_Ymin > 0.1")
-        self.analyzer.Define("flag2p1_MJYCut", "val2p1_MassYCandidate > 200")
+        self.analyzer.Define("flag2p1_PNet_YminCut", "flag2p1_SkimCut == 0 ? false : val2p1_PNet_Ymin > 0.1")
+        self.analyzer.Define("flag2p1_MJYCut", "flag2p1_SkimCut == 0 ? false : val2p1_MassYCandidate > 200")
 
 
         #defining a few variables
@@ -660,22 +706,25 @@ class XHY4b_Analyzer:
         self.analyzer.Define("flag2p1", flagstring_2p1)
         self.analyzer.Cut("flag1p1_or_flag2p1", "flag1p1 || flag2p1")
         self.register_weight("flag1p1_or_flag2p1")
+        if not (self.isData == 1): #channel depedent corrections
+            self.analyzer.AddCorrection(
+                Correction('C1p1_TriggerSF','cpp_modules/Trigger_SF.cc',["raw_nano/trigger_1p1_SFs.json", self.year], corrtype='weight'), {"pt":"leadingFatJetPt", "mass":"val1p1_MX"}
+            ) 
+            self.analyzer.AddCorrection(
+                Correction('C2p1_TriggerSF','cpp_modules/Trigger_SF.cc',["raw_nano/trigger_2p1_SFs.json", self.year], corrtype='weight'), {"pt":"leadingFatJetPt", "mass":"val2p1_MX"}
+            ) 
         
-        weights_1p1 = []
-        weights_2p1 = []
-        for c in self.analyzer.DataFrame.GetColumnNames():
-            if "weight" in str(c) and "1p1" in str(c):
-                weights_1p1.append(str(c))
-            if "weight" in str(c) and "2p1" in str(c):
-                weights_2p1.append(str(c))
+        weights_1p1 = ["C1p1_TriggerSF"]
+        weights_2p1 = ["C2p1_TriggerSF"]
+        print(weights_1p1, weights_2p1)
         self.analyzer.MakeWeightCols(name = "1p1", dropList = weights_2p1)
         self.analyzer.MakeWeightCols(name = "2p1", dropList = weights_1p1)
 
 
 
     def eff_after_selection_2p1(self):
-        wp_H_2p1 = 0.8
-        wp_Y_2p1 = 0.8
+        wp_H_2p1 = 0.98
+        wp_Y_2p1 = 0.9659
         base_node = self.analyzer.GetActiveNode()
         self.analyzer.Cut("Region_SR_2p1", f"PNet_H > {wp_H_2p1} && PNet_Y > {wp_Y_2p1}") 
         self.register_weight("Region_SR_2p1")
@@ -692,8 +741,8 @@ class XHY4b_Analyzer:
     def eff_after_selection_compound(self): 
         wp_H_1p1 = 0.98
         wp_Y_1p1 = 0.98
-        wp_H_2p1 = 0.8
-        wp_Y_2p1 = 0.8
+        wp_H_2p1 = 0.98
+        wp_Y_2p1 = 0.9659
         self.analyzer.Define("flag1p1_Region_SR_1p1", f"flag1p1 && val1p1_PNet_H > {wp_H_1p1} && val1p1_PNet_Y > {wp_Y_1p1}")
         self.analyzer.Define("flag2p1_Region_SR_2p1", f"flag2p1 && val2p1_PNet_H > {wp_H_2p1} && val2p1_PNet_Y > {wp_Y_2p1}")
 
@@ -724,14 +773,34 @@ class XHY4b_Analyzer:
 
     #Defining Regions for mode 1p1
     def b_tagging_1p1(self):
-        T_score_H = 0.98
-        L_score_H = 0.95
+        T_score_H = 0.95
+        L_score_H = 0.8
         Aux_score1_H = 0.55
         Aux_score2_H = 0.3
-        T_score_Y = 0.98
-        L_score_Y = 0.95
-        Aux_score1_Y = 0.55
-        Aux_score2_Y = 0.3
+        T_score_Y = 0.95
+        L_score_Y = 0.8
+        Aux_score1_Y = 0.3
+        Aux_score2_Y = 0.2
+        self.analyzer.Define("Region_SR1", f"PNet_H >= {T_score_H} && PNet_Y >= {T_score_Y}")
+        self.analyzer.Define("Region_SR2", f"PNet_H >= {L_score_H} && PNet_Y >= {L_score_Y}")
+        self.analyzer.Define("Region_SB1", f"PNet_H >= {T_score_H} && PNet_Y < {L_score_Y} && PNet_Y > {Aux_score1_Y}")
+        self.analyzer.Define("Region_SB2", f"PNet_H >= {L_score_H} && PNet_Y < {L_score_Y} && PNet_Y > {Aux_score1_Y}")
+        self.analyzer.Define("Region_VS1", f"PNet_H >= {Aux_score1_H} && PNet_H < {L_score_H} && PNet_Y >= {T_score_Y}")
+        self.analyzer.Define("Region_VS2", f"PNet_H >= {Aux_score1_H} && PNet_H < {L_score_H} && PNet_Y >= {L_score_Y}")
+        self.analyzer.Define("Region_VB1", f"PNet_H >= {Aux_score1_H} && PNet_H < {L_score_H} && PNet_Y < {L_score_Y} && PNet_Y > {Aux_score1_Y}")
+        self.analyzer.Define("Region_VS3", f"PNet_H >= {Aux_score2_H} && PNet_H < {Aux_score1_H} && PNet_Y >= {T_score_Y}")
+        self.analyzer.Define("Region_VS4", f"PNet_H >= {Aux_score2_H} && PNet_H < {Aux_score1_H} && PNet_Y >= {L_score_Y}")
+        self.analyzer.Define("Region_VB2", f"PNet_H >= {Aux_score2_H} && PNet_H < {Aux_score1_H} && PNet_Y < {L_score_Y} && PNet_Y > {Aux_score1_Y}")
+    
+    def b_tagging_1p1_unbounded(self):
+        T_score_H = 0.95
+        L_score_H = 0.8
+        Aux_score1_H = 0.55
+        Aux_score2_H = 0.3
+        T_score_Y = 0.95
+        L_score_Y = 0.8
+        Aux_score1_Y = 0.3
+        Aux_score2_Y = 0.2
         self.analyzer.Define("Region_SR1", f"PNet_H >= {T_score_H} && PNet_Y >= {T_score_Y}")
         self.analyzer.Define("Region_SR2", f"PNet_H >= {L_score_H} && PNet_Y >= {L_score_Y}")
         self.analyzer.Define("Region_SB1", f"PNet_H >= {T_score_H} && PNet_Y < {L_score_Y}")
@@ -742,7 +811,6 @@ class XHY4b_Analyzer:
         self.analyzer.Define("Region_VS3", f"PNet_H >= {Aux_score2_H} && PNet_H < {Aux_score1_H} && PNet_Y >= {T_score_Y}")
         self.analyzer.Define("Region_VS4", f"PNet_H >= {Aux_score2_H} && PNet_H < {Aux_score1_H} && PNet_Y >= {L_score_Y}")
         self.analyzer.Define("Region_VB2", f"PNet_H >= {Aux_score2_H} && PNet_H < {Aux_score1_H} && PNet_Y < {L_score_Y}")
-    
     #defining Control and Validation regions in a different way
     def b_tagging_1p1_v1(self):
         T_score_H = 0.98
@@ -766,13 +834,13 @@ class XHY4b_Analyzer:
     
     #defining different regions for the 2p1 mode. Out-dated, should only use SR1, SR2, SB1 and SB2
     def b_tagging_2p1(self):
-        T_score_H = 0.95
-        L_score_H = 0.8
+        T_score_H = 0.98
+        L_score_H = 0.95
         Aux_score1_H = 0.5
-        T_score_Y = 0.95
-        L_score_Y = 0.8
-        Aux_score1_Y = 0.7
-        Aux_score2_Y = 0.5
+        T_score_Y = 0.9659
+        L_score_Y = 0.7515
+        Aux_score1_Y = 0.5
+        Aux_score2_Y = 0.3
         self.analyzer.Define("Region_SR1", f"PNet_Y >= {T_score_Y} && PNet_H >= {T_score_H}")
         self.analyzer.Define("Region_SR2", f"PNet_Y >= {L_score_Y} && PNet_H >= {L_score_H}")
         self.analyzer.Define("Region_SB1", f"PNet_Y >= {T_score_Y} && PNet_H < {L_score_H} && PNet_H > {Aux_score1_H}")
@@ -822,6 +890,23 @@ class XHY4b_Analyzer:
         else:
             hist = self.analyzer.DataFrame.Histo2D((f"MXvsMY_{region}__{weight}_{JME_syst}", f"MX vs MY in {region}", len(MJY_bins) - 1, MJY_bins, len(MJJ_bins) - 1, MJJ_bins), "MY", "MX", weight)
             hist.Write()
+
+    def dumpTemplates_normalized(self, region, f, JME_syst, weight_tag = "All"):
+        f.cd()
+        MY_bins = array.array("d", np.linspace(0, 5000, 501) )
+        MX_bins = array.array("d", np.linspace(0, 5000, 501) )
+        if JME_syst != "nom":
+            self.analyzer.Define(f"weight_{weight_tag}__nominal_normalized", f"weight_{weight_tag}__nominal/ {self.sumW}")
+            hist = self.analyzer.DataFrame.Histo2D((f"MXvsMY_{region}__weight_{weight_tag}__nominal_{JME_syst}", f"MX vs MY in {region}", len(MY_bins) - 1, MY_bins, len(MX_bins) - 1, MX_bins), "MY", "MX", f"weight_{weight_tag}__nominal_normalized")
+            hist.Write()
+        else:
+            for c in self.analyzer.DataFrame.GetColumnNames():
+                if str(c).startswith("weight_") and weight_tag in str(c):
+                    weight = str(c)
+                    self.analyzer.Define(f"{weight}_normalized", f"{weight}/ {self.sumW}")
+                    hist = self.analyzer.DataFrame.Histo2D((f"MXvsMY_{region}__{weight}", f"MX vs MY in {region}", len(MY_bins) - 1, MY_bins, len(MX_bins) - 1, MX_bins), "MY", "MX", f"{weight}_normalized")
+                    hist.Write()
+          
 
 
     def dumpTemplates_compound(self, region, f, JME_syst, mode = "1p1"):
@@ -915,23 +1000,23 @@ class XHY4b_Analyzer:
 
 
         #FatJet quality
-        self.analyzer.Cut("IDCut","FatJet_jetId[0] >= 2 && FatJet_jetId[1] >= 2")
+        self.analyzer.Cut("IDCut","FatJet_jetId_corr.at(0) >= 2 && FatJet_jetId_corr.at(1) >= 2")
         self.register_weight("FatJetID")
         
         #FatJet Pt
-        self.analyzer.Cut("PtCut", f"FatJet_pt_{JME_syst}[0] > 450 && FatJet_pt_{JME_syst}[1] > 450")
+        self.analyzer.Cut("PtCut", f"FatJet_pt_{JME_syst}.at(0) > 450 && FatJet_pt_{JME_syst}.at(1) > 450")
         self.register_weight("FatJetPt")
 
         #FatJet Mass
-        self.analyzer.Cut("MassCut", f"FatJet_msoftdrop_{JME_syst}[0] > 40 && FatJet_msoftdrop_{JME_syst}[1] > 40" )
+        self.analyzer.Cut("MassCut", f"FatJet_msoftdrop_{JME_syst}.at(0) > 40 && FatJet_msoftdrop_{JME_syst}.at(1) > 40" )
         self.register_weight("FatJetMass")
 
         #FatJet Delta R
-        self.analyzer.Cut("DeltaEtaCut", "abs(FatJet_eta[0] - FatJet_eta[1]) < 1.3")
+        self.analyzer.Cut("DeltaEtaCut", "abs(FatJet_eta.at(0) - FatJet_eta.at(1)) < 1.3")
         self.register_weight("DeltaEta")
         
         #Higgs Match
-        self.analyzer.Define("idxH", f"higgsMassMatching(FatJet_msoftdrop_{JME_syst}[0], FatJet_msoftdrop_{JME_syst}[1])")
+        self.analyzer.Define("idxH", f"higgsMassMatching(FatJet_msoftdrop_{JME_syst}.at(0), FatJet_msoftdrop_{JME_syst}.at(1))")
         self.analyzer.Define("idxY", "1 - idxH")
         self.analyzer.Cut("HiggsCut", "idxH >= 0") 
         self.register_weight("HiggsMatch")
@@ -958,10 +1043,10 @@ class XHY4b_Analyzer:
         self.register_weight("MassJJ")
 
 
-        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{JME_syst}[0]")
-        self.analyzer.Define("leadingFatJetPhi", "FatJet_phi[0]")
-        self.analyzer.Define("leadingFatJetEta", "FatJet_eta[0]")
-        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{JME_syst}[0]")
+        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{JME_syst}.at(0)")
+        self.analyzer.Define("leadingFatJetPhi", "FatJet_phi.at(0)")
+        self.analyzer.Define("leadingFatJetEta", "FatJet_eta.at(0)")
+        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{JME_syst}.at(0)")
         
         self.analyzer.Define("MJY", "MassYCandidate")
         self.analyzer.Define("MJJ", "MassLeadingTwoFatJets")
@@ -1038,7 +1123,7 @@ class XHY4b_Analyzer:
         self.analyzer.Cut("HiggsEtaCut", "std::abs(EtaHiggsCandidate) < 2.5")
         self.register_weight("HiggsEta")
 
-        self.analyzer.Cut("FatJetIDCut","FatJet_jetId[idxJH] >= 2 ")
+        self.analyzer.Cut("FatJetIDCut","FatJet_jetId_corr[idxJH] >= 2 ")
         self.register_weight("FatJetID")
 
 
@@ -1051,13 +1136,13 @@ class XHY4b_Analyzer:
 
         #Looking for Y Jets
         self.analyzer.Define("idxJY", f"FindIdxJY(Jet_eta, Jet_phi, FatJet_eta[idxJH], FatJet_phi[idxJH], Jet_btagPNetB, 0.8)")
-        self.analyzer.Cut("IdxJYCut", "idxJY[0] >= 0 && idxJY[1] >= 0")
+        self.analyzer.Cut("IdxJYCut", "idxJY.at(0) >= 0 && idxJY.at(1) >= 0")
 
 
         self.register_weight("JYMatch")
         #Defining a bunch of variables for later use
-        self.analyzer.Define("idxJY0", "idxJY[0]")
-        self.analyzer.Define("idxJY1", "idxJY[1]")  
+        self.analyzer.Define("idxJY0", "idxJY.at(0)")
+        self.analyzer.Define("idxJY1", "idxJY.at(1)")  
         self.analyzer.Define("PtJY0", f"Jet_pt_{JME_syst}[idxJY0]")
         self.analyzer.Define("PtJY1", f"Jet_pt_{JME_syst}[idxJY1]")
         self.analyzer.Define("EtaJY0", "Jet_eta[idxJY0]")
@@ -1074,7 +1159,7 @@ class XHY4b_Analyzer:
 
 
 
-        self.analyzer.Cut("YJetIDCut", "Jet_jetId[idxJY0] >= 2 && Jet_jetId[idxJY1] >= 2")
+        self.analyzer.Cut("YJetIDCut", "Jet_jetId_corr[idxJY0] >= 2 && Jet_jetId_corr[idxJY1] >= 2")
         self.register_weight("YJetID")
         self.analyzer.Cut("YPtCut", "PtJY0 >= 50 && PtJY0 >= 50")
         self.register_weight("YPt")
@@ -1101,10 +1186,10 @@ class XHY4b_Analyzer:
         self.analyzer.Define("MY", "MassYCandidate")
         self.analyzer.Define("MX", "MassJJH")
 
-        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{JME_syst}[0]")
-        self.analyzer.Define("leadingFatJetPhi", "FatJet_phi[0]")
-        self.analyzer.Define("leadingFatJetEta", "FatJet_eta[0]")
-        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{JME_syst}[0]")
+        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{JME_syst}.at(0)")
+        self.analyzer.Define("leadingFatJetPhi", "FatJet_phi.at(0)")
+        self.analyzer.Define("leadingFatJetEta", "FatJet_eta.at(0)")
+        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{JME_syst}.at(0)")
         #Making weight columns
         self.analyzer.MakeWeightCols(name = "All")
         
@@ -1159,16 +1244,16 @@ class XHY4b_Analyzer:
 
 
         #FatJet quality
-        self.analyzer.Cut("IDCut","FatJet_jetId[0] >= 2 && FatJet_jetId[1] >= 2")
+        self.analyzer.Cut("IDCut","FatJet_jetId_corr.at(0) >= 2 && FatJet_jetId_corr.at(1) >= 2")
         self.register_weight("FatJetID")
         
 
         #FatJet Mass
-        self.analyzer.Cut("MassCut", f"FatJet_msoftdrop_{JME_syst}[0] > 40 && FatJet_msoftdrop_{JME_syst}[1] > 40" )
+        self.analyzer.Cut("MassCut", f"FatJet_msoftdrop_{JME_syst}.at(0) > 40 && FatJet_msoftdrop_{JME_syst}.at(1) > 40" )
         self.register_weight("FatJetMass")
 
         #Higgs Match
-        self.analyzer.Define("idxH", f"higgsMassMatching(FatJet_msoftdrop_{JME_syst}[0], FatJet_msoftdrop_{JME_syst}[1])")
+        self.analyzer.Define("idxH", f"higgsMassMatching(FatJet_msoftdrop_{JME_syst}.at(0), FatJet_msoftdrop_{JME_syst}.at(1))")
         self.analyzer.Define("idxY", "1 - idxH")
         self.analyzer.Cut("HiggsCut", "idxH >= 0") 
         self.register_weight("HiggsMatch")
@@ -1195,19 +1280,19 @@ class XHY4b_Analyzer:
         self.register_weight("MassJJ")
 
 
-        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{JME_syst}[0]")
-        self.analyzer.Define("leadingFatJetPhi", "FatJet_phi[0]")
-        self.analyzer.Define("leadingFatJetEta", "FatJet_eta[0]")
-        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{JME_syst}[0]")
+        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{JME_syst}.at(0)")
+        self.analyzer.Define("leadingFatJetPhi", "FatJet_phi.at(0)")
+        self.analyzer.Define("leadingFatJetEta", "FatJet_eta.at(0)")
+        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{JME_syst}.at(0)")
         
         self.analyzer.Define("MJY", "MassYCandidate")
         self.analyzer.Define("MJJ", "MassLeadingTwoFatJets")
         self.analyzer.Define("MY", "MassYCandidate")
         self.analyzer.Define("MX", "MassLeadingTwoFatJets")
 
-        self.analyzer.Define("FatJet_pt_0", f"FatJet_pt_{JME_syst}[0]")
-        self.analyzer.Define("FatJet_pt_1", f"FatJet_pt_{JME_syst}[1]")
-        self.analyzer.Define("deltaEta", "abs(FatJet_eta[0] - FatJet_eta[1])")
+        self.analyzer.Define("FatJet_pt_0", f"FatJet_pt_{JME_syst}.at(0)")
+        self.analyzer.Define("FatJet_pt_1", f"FatJet_pt_{JME_syst}.at(1)")
+        self.analyzer.Define("deltaEta", "abs(FatJet_eta.at(0) - FatJet_eta.at(1))")
         self.analyzer.MakeWeightCols(name = "All")
         NCuts = CutGroup("Nminus1_1p1")
         Vars = {}
@@ -1294,7 +1379,7 @@ class XHY4b_Analyzer:
         self.analyzer.Cut("HiggsEtaCut", "std::abs(EtaHiggsCandidate) < 2.5")
         self.register_weight("HiggsEta")
 
-        self.analyzer.Cut("FatJetIDCut","FatJet_jetId[idxJH] >= 2 ")
+        self.analyzer.Cut("FatJetIDCut","FatJet_jetId_corr[idxJH] >= 2 ")
         self.register_weight("FatJetID")
 
 
@@ -1305,13 +1390,13 @@ class XHY4b_Analyzer:
 
         #Looking for Y Jets
         self.analyzer.Define("idxJY", f"FindIdxJY(Jet_eta, Jet_phi, FatJet_eta[idxJH], FatJet_phi[idxJH], Jet_btagPNetB, 0.8)")
-        self.analyzer.Cut("IdxJYCut", "idxJY[0] >= 0 && idxJY[1] >= 0")
+        self.analyzer.Cut("IdxJYCut", "idxJY.at(0) >= 0 && idxJY.at(1) >= 0")
 
 
         self.register_weight("JYMatch")
         #Defining a bunch of variables for later use
-        self.analyzer.Define("idxJY0", "idxJY[0]")
-        self.analyzer.Define("idxJY1", "idxJY[1]")  
+        self.analyzer.Define("idxJY0", "idxJY.at(0)")
+        self.analyzer.Define("idxJY1", "idxJY.at(1)")  
         self.analyzer.Define("PtJY0", f"Jet_pt_{JME_syst}[idxJY0]")
         self.analyzer.Define("PtJY1", f"Jet_pt_{JME_syst}[idxJY1]")
         self.analyzer.Define("EtaJY0", "Jet_eta[idxJY0]")
@@ -1328,7 +1413,7 @@ class XHY4b_Analyzer:
 
 
 
-        self.analyzer.Cut("YJetIDCut", "Jet_jetId[idxJY0] >= 2 && Jet_jetId[idxJY1] >= 2")
+        self.analyzer.Cut("YJetIDCut", "Jet_jetId_corr[idxJY0] >= 2 && Jet_jetId_corr[idxJY1] >= 2")
         self.register_weight("YJetID")
         self.analyzer.Cut("YEtaCut", "std::abs(EtaJY0) < 2.5 && std::abs(EtaJY1) < 2.5")
         self.register_weight("YEta")
@@ -1353,10 +1438,10 @@ class XHY4b_Analyzer:
         self.analyzer.Define("MY", "MassYCandidate")
         self.analyzer.Define("MX", "MassJJH")
 
-        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{JME_syst}[0]")
-        self.analyzer.Define("leadingFatJetPhi", "FatJet_phi[0]")
-        self.analyzer.Define("leadingFatJetEta", "FatJet_eta[0]")
-        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{JME_syst}[0]")
+        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{JME_syst}.at(0)")
+        self.analyzer.Define("leadingFatJetPhi", "FatJet_phi.at(0)")
+        self.analyzer.Define("leadingFatJetEta", "FatJet_eta.at(0)")
+        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{JME_syst}.at(0)")
         #Making weight columns
         self.analyzer.MakeWeightCols(name = "All")
         
@@ -1371,10 +1456,10 @@ class XHY4b_Analyzer:
 
         NCuts.Add("PtJYCut", f"PtJY0 >= 50 && PtJY1 >= 50")
         Vars["PtJYCut"] = {f"PtJY0":array.array("d", np.linspace(0, 3000, 301)), f"PtJY1":array.array("d", np.linspace(0, 3000, 301))}
-        wp_f = 0.8
+        wp_f = 0.98
         NCuts.Add("BTaggingHCut", f"PNet_H >= {wp_f}") 
         Vars["BTaggingHCut"] = {f"PNet_H":array.array("d", np.linspace(0, 1, 101))}
-        wp_s = 0.8
+        wp_s = 0.9659
         NCuts.Add("BTaggingYCut", f"PNet_Y >= {wp_s}") 
         Vars["BTaggingYCut"] = {f"PNet_Y":array.array("d", np.linspace(0, 1, 101))}
         
@@ -1577,12 +1662,12 @@ class XHY4b_Analyzer:
 
 
         
-        self.analyzer.Cut("IDCut","FatJet_jetId[0] > 1 && FatJet_jetId[1] > 1")
+        self.analyzer.Cut("IDCut","FatJet_jetId_corr.at(0) > 1 && FatJet_jetId_corr.at(1) > 1")
 
 
 
-        self.analyzer.Define(f"MassLeadingTwoFatJets", "InvMass_PtEtaPhiM({FatJet_pt_" + JME_syst + "[0], FatJet_pt_" + JME_syst + "[1]}, {FatJet_eta[0], FatJet_eta[1]}, {FatJet_phi[0], FatJet_phi[1]}, {FatJet_msoftdrop_" + JME_syst + "[0], FatJet_msoftdrop_" + JME_syst + "[1]})")
-        self.analyzer.Define("idxH", f"higgsMassMatching(FatJet_msoftdrop_{JME_syst}[0], FatJet_msoftdrop_{JME_syst}[1])")
+        self.analyzer.Define(f"MassLeadingTwoFatJets", "InvMass_PtEtaPhiM({FatJet_pt_" + JME_syst + ".at(0), FatJet_pt_" + JME_syst + ".at(1)}, {FatJet_eta.at(0), FatJet_eta.at(1)}, {FatJet_phi.at(0), FatJet_phi.at(1)}, {FatJet_msoftdrop_" + JME_syst + ".at(0), FatJet_msoftdrop_" + JME_syst + ".at(1)})")
+        self.analyzer.Define("idxH", f"higgsMassMatching(FatJet_msoftdrop_{JME_syst}.at(0), FatJet_msoftdrop_{JME_syst}.at(1))")
         self.analyzer.Define("idxY", "1 - idxH")
         self.analyzer.Define("PNet_H", "FatJet_particleNet_XbbVsQCD[std::max(idxH, 0)]")
         self.analyzer.Define("PNet_Y", "FatJet_particleNet_XbbVsQCD[std::min(idxY, 1)]")
@@ -1590,7 +1675,7 @@ class XHY4b_Analyzer:
         self.analyzer.Define(f"FatJet_pt_{JME_syst}_Y", f"FatJet_pt_{JME_syst}[std::min(idxY, 1)]")
         self.analyzer.Define(f"FatJet_msoftdrop_{JME_syst}_H", f"FatJet_msoftdrop_{JME_syst}[std::max(idxH, 0)]")
         self.analyzer.Define(f"FatJet_msoftdrop_{JME_syst}_Y", f"FatJet_msoftdrop_{JME_syst}[std::min(idxY, 1)]")
-        self.analyzer.Define("AbsDeltaEta", "abs(FatJet_eta[0] - FatJet_eta[1])")
+        self.analyzer.Define("AbsDeltaEta", "abs(FatJet_eta.at(0) - FatJet_eta.at(1))")
         
 
         NCuts = CutGroup("Nminus1_1p1")
@@ -1610,7 +1695,7 @@ class XHY4b_Analyzer:
         NCuts.Add("MassYCut", f"FatJet_msoftdrop_{JME_syst}_Y > 60")
         Vars["MassYCut"] = {f"FatJet_msoftdrop_{JME_syst}_Y": array.array("d", np.linspace(0, 5000, 501))}
         
-        NCuts.Add("DeltaEtaCut", "abs(FatJet_eta[0] - FatJet_eta[1]) < 1.3")
+        NCuts.Add("DeltaEtaCut", "abs(FatJet_eta.at(0) - FatJet_eta.at(1)) < 1.3")
         Vars["DeltaEtaCut"] = {"AbsDeltaEta": array.array("d", np.linspace(0, 6, 201) )}
 
         NCuts.Add("MJJCut", "MassLeadingTwoFatJets > 700")
@@ -1633,5 +1718,205 @@ class XHY4b_Analyzer:
                 hist.Write()
 
 
+
+
+    def selection_compound_debug(self, JME_syst = "nom"):
+        AutoJME.AutoJME(self.analyzer, ["Jet", "FatJet"], self.corr_year, self.data_era, True)
+        if not (self.isData == 1):
+            AutoPU.AutoPU(self.analyzer, self.corr_year)
+            genW    = Correction('genW',"cpp_modules/genW.cc",corrtype='corr')
+            evalargs = {
+                    "genWeight": "genWeight",
+                    "lumi": f"{self.lumi}",
+                    "Xsec": f"{self.Xsec}",
+                    "sumW": "1"
+            }
+            self.analyzer.AddCorrection(genW, evalargs)
+            self.analyzer.AddCorrection(
+                Correction('Pdfweight','TIMBER/Framework/include/PDFweight_uncert.h',[self.analyzer.lhaid],corrtype='uncert')
+            ) 
+
+        self.register_weight("JERCJetVeto")
+
+        AutoNF(self.analyzer, self.year, self.isData)
+        self.register_weight("NoiseFilterCut")
+        
+        #Lepton veto
+        self.analyzer.Define("nEle", "nElectrons(nElectron, Electron_cutBased, 0, Electron_pt,20, Electron_eta)")
+        self.analyzer.Define("nMu", "nMuons(nMuon, Muon_looseId, Muon_pfIsoId, 0, Muon_pt, 20, Muon_eta)")
+        self.analyzer.Cut("LeptonVetoCut", "nMu==0 && nEle==0")
+        self.register_weight("LeptonVeto")
+        
+        #Triggers and Flags
+        with open("raw_nano/Trigger.json") as f:
+            triggers = json.load(f)
+        hadron_triggers = triggers["Hadron"][self.year]
+        print(hadron_triggers)
+        triggerCut = self.analyzer.GetTriggerString(hadron_triggers)
+        print(triggerCut)
+        self.analyzer.Cut("TriggerCut", triggerCut)
+        self.register_weight("TriggerCut")
+
+        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{JME_syst}[0]")
+        self.analyzer.Define("leadingFatJetPhi", "FatJet_phi[0]")
+        self.analyzer.Define("leadingFatJetEta", "FatJet_eta[0]")
+        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{JME_syst}[0]")
+
+        #################################1p1####################################################################
+        self.analyzer.Cut("f1p1_SkimCut", "SkimFlag == 1 || SkimFlag == 3") 
+        self.analyzer.Define("flag1p1_SkimCut", "SkimFlag == 1 || SkimFlag == 3") 
+        self.register_weight("skim1p1")
+        #FatJet quality
+        self.analyzer.Cut("flag1p1_IDCut"," FatJet_jetId_corr[0] >= 2 && FatJet_jetId_corr[1] >= 2")
+        self.register_weight("id1p1")
+        
+        #FatJet Pt
+        self.analyzer.Cut("flag1p1_PtCut", f" FatJet_pt_{JME_syst}[0] > 450 && FatJet_pt_{JME_syst}[1] > 450")
+        self.register_weight("pt1p1")
+
+        #FatJet Mass
+        self.analyzer.Cut("flag1p1_MassCut", f" FatJet_msoftdrop_{JME_syst}[0] > 40 && FatJet_msoftdrop_{JME_syst}[1] > 40" )
+        self.register_weight("mass1p1")
+
+        #FatJet Delta R
+        self.analyzer.Cut("flag1p1_DeltaEtaCut", " abs(FatJet_eta[0] - FatJet_eta[1]) < 1.3")
+        self.register_weight("deltaeta1p1")
+        
+        #Higgs Match
+        self.analyzer.Define("val1p1_idxH_try", f" higgsMassMatching(FatJet_msoftdrop_{JME_syst}[0], FatJet_msoftdrop_{JME_syst}[1])")
+        self.analyzer.Define("val1p1_idxY_try", " 1 - val1p1_idxH_try")
+        self.analyzer.Define("val1p1_idxH", " std::max(0, val1p1_idxH_try)")
+        self.analyzer.Define("val1p1_idxY", " std::min(1, val1p1_idxY_try)")
+        self.analyzer.Cut("flag1p1_HiggsCut", " val1p1_idxH_try >= 0") 
+        self.register_weight("higgs1p1")
+
+
+    
+        #Defining a bunch of variables for later use
+        self.analyzer.Define("val1p1_MassHiggsCandidate",f" FatJet_msoftdrop_{JME_syst}[val1p1_idxH]")
+        self.analyzer.Define("val1p1_PtHiggsCandidate", f" FatJet_pt_{JME_syst}[val1p1_idxH]")
+        self.analyzer.Define("val1p1_EtaHiggsCandidate", " FatJet_eta[val1p1_idxH]")
+        self.analyzer.Define("val1p1_PhiHiggsCandidate", " FatJet_phi[val1p1_idxH]")
+        self.analyzer.Define("val1p1_PNet_H", " FatJet_particleNet_XbbVsQCD[val1p1_idxH]")
+        
+        self.analyzer.Define("val1p1_MassYCandidate", f"FatJet_msoftdrop_{JME_syst}[val1p1_idxY]")
+        self.analyzer.Define("val1p1_PtYCandidate", f"FatJet_pt_{JME_syst}[val1p1_idxY]")
+        self.analyzer.Define("val1p1_EtaYCandidate", "FatJet_eta[val1p1_idxY]")
+        self.analyzer.Define("val1p1_PhiYCandidate", "FatJet_phi[val1p1_idxY]")
+        self.analyzer.Define("val1p1_PNet_Y", "FatJet_particleNet_XbbVsQCD[val1p1_idxY]")
+        
+        #X(JJ) Mass
+        self.analyzer.Define(f"val1p1_MassLeadingTwoFatJets", "InvMass_PtEtaPhiM({val1p1_PtHiggsCandidate, val1p1_PtYCandidate}, {val1p1_EtaHiggsCandidate, val1p1_EtaYCandidate}, {val1p1_PhiHiggsCandidate, val1p1_PhiYCandidate}, {val1p1_MassHiggsCandidate, val1p1_MassYCandidate})")
+        self.analyzer.Cut("flag1p1_MJJCut", "val1p1_MassLeadingTwoFatJets > 200")
+        self.register_weight("mjj1p1")
+        self.register_weight("mjj1p1_again")
+
+
+        test_rdf = self.analyzer.GetActiveNode().DataFrame
+        print("TEST0: ", test_rdf.Count().GetValue())
+        test_rdf = test_rdf.Define("val1p1_MJY", "val1p1_MassYCandidate")
+        test_rdf = test_rdf.Define("val1p1_MJJ", "val1p1_MassLeadingTwoFatJets")
+        test_rdf = test_rdf.Define("val1p1_MY", "val1p1_MassYCandidate")
+        test_rdf = test_rdf.Define("val1p1_MX", "val1p1_MassLeadingTwoFatJets")
+        print("TEST1: ", test_rdf.Count().GetValue())
+        print("TEST2: ", test_rdf.Count().GetValue())
+        print("TEST3: ", test_rdf.Count().GetValue())
+        print("TEST4: ", test_rdf.Count().GetValue())
+        print("TEST5: ", test_rdf.Count().GetValue())
+         
+        self.analyzer.Define("val1p1_MJY", "val1p1_MassYCandidate")
+        self.analyzer.Define("val1p1_MJJ", "val1p1_MassLeadingTwoFatJets")
+        self.analyzer.Define("val1p1_MY", "val1p1_MassYCandidate")
+        self.analyzer.Define("val1p1_MX", "val1p1_MassLeadingTwoFatJets")
+
+        self.register_weight("flag1p1_or_flag2p1")
+        if not (self.isData == 1): #channel depedent corrections
+            self.analyzer.AddCorrection(
+                Correction('C1p1_TriggerSF','cpp_modules/Trigger_SF.cc',["raw_nano/trigger_1p1_SFs.json", self.year], corrtype='weight'), {"pt":"leadingFatJetPt", "mass":"val1p1_MX"}
+            ) 
+        
+        weights_2p1 = ["C2p1_TriggerSF"]
+        self.analyzer.MakeWeightCols(name = "1p1", dropList = weights_2p1)
+
+        self.register_weight("last")
+        self.register_weight("last_1")
+        self.register_weight("last_2")
+
+
+    def selection_1p1_debug(self, JME_syst = "nom"):
+        #AutoJetID.AutoJetID(self.analyzer, "2024_Summer24", ["Jet","FatJet"], nanoAOD_ver = 15)
+        #AutoJME.AutoJME(self.analyzer, ["Jet", "FatJet"], self.corr_year, self.data_era, True)
+        AutoJME.AutoJME(self.analyzer, ["Jet"], "2024_Summer24", self.data_era, True)
+        self.analyzer.Define(f"FatJet_pt_{JME_syst}", f"FatJet_pt")
+        self.analyzer.Define(f"FatJet_msoftdrop_{JME_syst}", f"FatJet_msoftdrop")
+        self.analyzer.Cut("test", "Jet_pt_nom[0] > 100")
+        self.register_weight("JERCJetVeto")
+
+        
+
+        #FatJet quality
+        #self.analyzer.Cut("IDCut","FatJet_jetId_corr[0] >= 2 && FatJet_jetId_corr[1] >= 2")
+        self.register_weight("FatJetID")
+        #FatJet Pt
+        #self.analyzer.Cut("PtCut", f"FatJet_pt_{JME_syst}[0] > 450 && FatJet_pt_{JME_syst}[1] > 450")
+        self.analyzer.Cut("PtCut", f"FatJet_pt_{JME_syst}.at(0) > 450 && FatJet_pt_{JME_syst}.at(1) > 450")
+        return
+        self.register_weight("FatJetPt")
+        #FatJet Mass
+        self.analyzer.Cut("MassCut", f"FatJet_msoftdrop_{JME_syst}[0] > 40 && FatJet_msoftdrop_{JME_syst}[1] > 40" )
+        self.register_weight("FatJetMass")
+
+        #FatJet Delta R
+        self.analyzer.Cut("DeltaEtaCut", "abs(FatJet_eta[0] - FatJet_eta[1]) < 1.3")
+        self.register_weight("DeltaEta")
+        
+        #Higgs Match
+        self.analyzer.Define("idxH", f"higgsMassMatching(FatJet_msoftdrop_{JME_syst}[0], FatJet_msoftdrop_{JME_syst}[1])")
+        self.analyzer.Define("idxY", "1 - idxH")
+        self.analyzer.Cut("HiggsCut", "idxH >= 0") 
+        self.register_weight("HiggsMatch")
+
+
+    
+
+        #Defining a bunch of variables for later use
+        self.analyzer.Define("MassHiggsCandidate",f"FatJet_msoftdrop_{JME_syst}[idxH]")
+        self.analyzer.Define("PtHiggsCandidate", f"FatJet_pt_{JME_syst}[idxH]")
+        self.analyzer.Define("EtaHiggsCandidate", "FatJet_eta[idxH]")
+        self.analyzer.Define("PhiHiggsCandidate", "FatJet_phi[idxH]")
+        self.analyzer.Define("PNet_H", "FatJet_particleNet_XbbVsQCD[idxH]")
+        
+        self.analyzer.Define("MassYCandidate", f"FatJet_msoftdrop_{JME_syst}[idxY]")
+        self.analyzer.Define("PtYCandidate", f"FatJet_pt_{JME_syst}[idxY]")
+        self.analyzer.Define("EtaYCandidate", "FatJet_eta[idxY]")
+        self.analyzer.Define("PhiYCandidate", "FatJet_phi[idxY]")
+        self.analyzer.Define("PNet_Y", "FatJet_particleNet_XbbVsQCD[idxY]")
+        
+        #X(JJ) Mass
+        self.analyzer.Define(f"MassLeadingTwoFatJets", "InvMass_PtEtaPhiM({PtHiggsCandidate, PtYCandidate}, {EtaHiggsCandidate, EtaYCandidate}, {PhiHiggsCandidate, PhiYCandidate}, {MassHiggsCandidate, MassYCandidate})")
+        self.analyzer.Cut("MJJCut", "MassLeadingTwoFatJets > 200")
+        self.register_weight("MassJJ")
+
+
+        self.analyzer.Define("leadingFatJetPt", f"FatJet_pt_{JME_syst}[0]")
+        self.analyzer.Define("leadingFatJetPhi", "FatJet_phi[0]")
+        self.analyzer.Define("leadingFatJetEta", "FatJet_eta[0]")
+        self.analyzer.Define("leadingFatJetMsoftdrop", f"FatJet_msoftdrop_{JME_syst}[0]")
+        
+        self.analyzer.Define("MJY", "MassYCandidate")
+        self.analyzer.Define("MJJ", "MassLeadingTwoFatJets")
+        self.analyzer.Define("MY", "MassYCandidate")
+        self.analyzer.Define("MX", "MassLeadingTwoFatJets")
+
+        if not (self.isData == 1):
+            self.analyzer.AddCorrection(
+                Correction('TriggerSF','cpp_modules/Trigger_SF.cc',["raw_nano/trigger_1p1_SFs.json", self.year], corrtype='weight'), {"pt":"leadingFatJetPt", "mass":"MX"}
+            ) 
+        #Making weight columns
+        self.analyzer.MakeWeightCols(name = "All")
+        
+        print(f"DEBUG: { self.analyzer.GetActiveNode().DataFrame.Count().GetValue()}") 
+
+    
 
 

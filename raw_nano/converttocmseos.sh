@@ -1,6 +1,6 @@
 xroot_fs=$( ls files_xrootd)
 for xroot_f in $xroot_fs; do
-    if [[ $xroot_f == *"Data"* && $xroot_f != *"2023BPix"* ]]; then
+    if [[ $xroot_f == *"Data"* && $xroot_f != *"2023BPix"* && $xroot_f != *"2024"* ]]; then
         echo converting $xroot_f
         sed 's|cmsxrootd|cmseos|g' files_xrootd/$xroot_f > files/$xroot_f
     else

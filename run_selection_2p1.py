@@ -22,7 +22,7 @@ CompileCpp("cpp_modules/massMatching.cc")
 CompileCpp("cpp_modules/selection_functions.cc")
 
 #Specifying columns to save
-columns = [ "MY", "MX", "leadingFatJetPt","leadingFatJetPhi","leadingFatJetEta", "leadingFatJetMsoftdrop", "PtJY0", "PtJY1", "EtaJY0", "EtaJY1", "PhiJY0", "PhiJY1", "MassJY0", "MassJY1", "MassJJH", "MassHiggsCandidate", "PtHiggsCandidate", "EtaHiggsCandidate", "PhiHiggsCandidate", "MassYCandidate", "MJJH", "MJY", "PNet_H", "PNet_Y0", "PNet_Y1", "Pileup_nTrueInt", "weight.*"]
+columns = [ "MY", "MX", "leadingFatJetPt","leadingFatJetPhi","leadingFatJetEta", "leadingFatJetMsoftdrop", "PtJY0", "PtJY1", "EtaJY0", "EtaJY1", "PhiJY0", "PhiJY1", "MassJY0", "MassJY1", "MassJJH", "MassHiggsCandidate", "PtHiggsCandidate", "EtaHiggsCandidate", "PhiHiggsCandidate", "MassYCandidate", "MJJH", "MJY", "PNet_Y0", "PNet_Y1", "PNet_Ymin", "PNet_Y", "PNet_H", "Pileup_nTrueInt", "weight.*"]
 
 #Running selection
 ana = XHY4b_Analyzer(args.dataset, args.year, args.n_files, args.i_job)

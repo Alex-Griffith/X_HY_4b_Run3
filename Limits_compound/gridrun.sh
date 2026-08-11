@@ -1,4 +1,5 @@
 #!/bin/bash
+export USER=xinlong
 root_dir=$(pwd)
 OUTTXT="$1"_"$2"_"$3"_"$4"_"${5}"_"${6}"_"$7"_"$8"_"$9"_output.log
 OUTTXT="${OUTTXT//\//_}"
@@ -11,10 +12,17 @@ echo "System software: `cat /etc/redhat-release`" | tee -a $root_dir/$OUTTXT
 ls | tee -a $root_dir/$OUTTXT
 source /cvmfs/cms.cern.ch/cmsset_default.sh
 xrdcp root://cmseos.fnal.gov//store/user/$USER/tar_2dalphabet.tgz ./
+echo TEST-3 | tee -a $root_dir/$OUTTXT
+echo xrdcp root://cmseos.fnal.gov//store/user/$USER/tar_2dalphabet.tgz ./ | tee -a $root_dir/$OUTTXT
+pwd | tee -a $root_dir/$OUTTXT
+ls | tee -a $root_dir/$OUTTXT
+echo TEST-2 | tee -a $root_dir/$OUTTXT
+
 export SCRAM_ARCH=el9_amd64_gcc12
 scramv1 project CMSSW CMSSW_14_1_0_pre4
 echo "Unpacking compiled CMSSW environment tarball..." | tee -a $root_dir/$OUTTXT
 tar -xzvf tar_2dalphabet.tgz | tee -a $root_dir/$OUTTXT
+echo TEST-1 | tee -a $root_dir/$OUTTXT
 rm tar_2dalphabet.tgz
 mkdir tardir 
 mv tarball.tgz tardir/ 
@@ -25,17 +33,19 @@ rm tarball.tgz
 mkdir ../CMSSW_14_1_0_pre4/src/testdir
 cp -r * ../CMSSW_14_1_0_pre4/src/testdir
 cd ../CMSSW_14_1_0_pre4/src/
+echo TEST0 | tee -a $root_dir/$OUTTXT
 pwd | tee -a $root_dir/$OUTTXT
 ls | tee -a $root_dir/$OUTTXT
+echo TEST1 | tee -a $root_dir/$OUTTXT
  
 # CMSREL and virtual env setup
 echo 'IN RELEASE' | tee -a $root_dir/$OUTTXT
-pwd | tee -a $root_dir/$OUTTXT
-ls | tee -a $root_dir/$OUTTXT
 echo 'scramv1 runtime -sh' | tee -a $root_dir/$OUTTXT
 eval `scramv1 runtime -sh` 
 echo $CMSSW_BASE "is the CMSSW we have on the local worker node" | tee -a $root_dir/$OUTTXT
-echo 'python3 -m venv timber-env' | tee -a $root_dir/$OUTTXT
+pwd | tee -a $root_dir/$OUTTXT
+ls | tee -a $root_dir/$OUTTXT
+echo 'python3 -m venv twoD-env' | tee -a $root_dir/$OUTTXT
 python3 -m venv twoD-env
 echo 'source twoD-env/bin/activate' | tee -a $root_dir/$OUTTXT
 source twoD-env/bin/activate
@@ -70,6 +80,8 @@ mode=$7
 mkdir Templates
 
 ./load_fit.sh $MX $MY $mode
+#python load_fit_TH_new.py --mx $MX --my $MY --mode $mode --type all 2>&1 | tee -a $root_dir/$OUTTXT
+
 ./make_json.sh $mode
 python XYH.py --tf 1x1 --sig $MX-$MY --r_fail $CR_FAIL --r_pass $CR_PASS --make --makeCard --wsp CR_MX-"$MX"_MY-"$MY" 2>&1 | tee -a $root_dir/$OUTTXT
 python XYH.py --tf 1x1 --sig $MX-$MY --r_fail $SR_FAIL --r_pass $SR_PASS --make --makeCard --wsp SR_MX-"$MX"_MY-"$MY" 2>&1 | tee -a $root_dir/$OUTTXT

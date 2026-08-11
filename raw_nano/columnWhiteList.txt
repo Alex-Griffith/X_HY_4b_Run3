@@ -6,4 +6,5 @@ Electron_pt
 Electron_eta
 Muon_pt
 Muon_eta
-FatJet_globalParT3_massCorrGeneric
+LHEPdfWeight
+FatJet_globalParT3_massCorrX2p

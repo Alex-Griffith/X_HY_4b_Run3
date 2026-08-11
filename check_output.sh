@@ -44,11 +44,11 @@ if [[ $output == "skim" ]]; then
     done < $input_file
 
 
-elif [[ $output == "selection_1p1" ]]; then
+elif [[ $output == "selection_2p1" ]]; then
     amend_file=amend_selection_args.txt
     > $amend_file
     input_file=selection_args.txt
-    output_dir=/store/user/xinlong/XHY4bRun3_selection_1p1
+    output_dir=/store/user/xinlong/XHY4bRun3_selection_2p1
     output_files=$(eosls $output_dir)
     declare -A classified_files
     for file in ${output_files[@]}; do
@@ -92,7 +92,6 @@ elif [[ $output == "selection_1p1" ]]; then
                 fi                
                 if [[ $file == *"Templates"* && $file == *"$file_base"* && $file == *"$n_base"* && $file == *"$i_base"* && $file == *"$JME_base"* ]]; then                
                     found=1
-                    echo TEST
                     classified_files["$input_y"]="${classified_files[$input_y]//$file/}"
                     #echo $file
                     break

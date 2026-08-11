@@ -54,10 +54,9 @@ for veto_cut in Veto_cuts:
         ana.divide(region)
         #ana.output = veto_cut + "_" + region + "_" + file_basename
         print(ana.output)
-        #ana.snapshot(saveRunChain = True)
-        #ana.save_cutflowInfo()
         ana.dumpTemplates_compound(region, f, JME_syst,  mode ) 
         #f.Close()
     f.Close()
-
+    ana.snapshot(saveRunChain = True)
+    ana.save_cutflowInfo()
 

@@ -31,15 +31,17 @@ for ele in JME_systs:
 
 #For each region, cut on the b score, then save the snapshot and cutflow and make 2D histograms
 base_node = ana.analyzer.GetActiveNode()
+ana.output = "division_1p1_" + file_basename
+f = ROOT.TFile.Open("Templates_" + ana.output, "RECREATE")
+ana.snapshot(saveRunChain = True)
 for region in regions:
     ana.analyzer.SetActiveNode(base_node)
     ana.divide(region)
-    ana.output = region + "_" + file_basename
+    #ana.output = region + "_" + file_basename
     print(ana.output)
-    ana.snapshot(saveRunChain = True)
-    ana.save_cutflowInfo()
-    f = ROOT.TFile.Open("Templates_" + ana.output, "RECREATE")
-    ana.dumpTemplates_1p1(region, f, JME_syst) 
-    f.Close()
-
+    #ana.snapshot(saveRunChain = True)
+    #ana.save_cutflowInfo()
+    ana.dumpTemplates_normalized(region, f, JME_syst) 
+f.Close()
+ana.save_cutflowInfo()
 

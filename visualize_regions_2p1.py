@@ -5,13 +5,13 @@ MY = 2000
 scatter_file = "root://cmseos.fnal.gov//store/user/xinlongl/XHY4bRun3_selection_2p1/nom_tagged_selected_2p1_SKIM_skimmed_2022EE__SignalMC_XHY4b__MX-3000_MY-1600_n-10000_i-0.root"
 scatter_file = f"root://cmseos.fnal.gov//store/user/xinlongl/XHY4bRun3_selection_2p1/nom_tagged_selected_2p1_SKIM_skimmed_2022EE__SignalMC_XHY4b__MX-{MX}_MY-{MY}_n-10000_i-0.root"
 
-T_score_H = 0.95
-L_score_H = 0.8
+T_score_H = 0.98
+L_score_H = 0.95
 Aux_score1_H = 0.5
-T_score_Y = 0.95
-L_score_Y = 0.8
-Aux_score1_Y = 0.7
-Aux_score2_Y = 0.5
+T_score_Y = 0.9656
+L_score_Y = 0.7515
+Aux_score1_Y = 0.5
+Aux_score2_Y = 0.3
 
 fig = plt.figure()
 ax = fig.add_subplot(1, 1, 1)
@@ -42,12 +42,12 @@ Regions = {"SR1":[[T_score_Y, 1], [T_score_H, 1]],
 
 rdf = ROOT.RDataFrame("Events", scatter_file)
 #rdf = rdf.Define("PNet_Y", "std::min(PNet_Y0, PNet_Y1)")
-rdf = rdf.Define("PNet_Y", "std::max(PNet_Y0, PNet_Y1)")
-rdf = rdf.Define("PNet_Ymin", "std::min(PNet_Y0, PNet_Y1)")
-rdf =rdf.Filter("PNet_Ymin > 0.1")
+#rdf = rdf.Define("PNet_Y", "std::max(PNet_Y0, PNet_Y1)")
+#rdf = rdf.Define("PNet_Ymin", "std::min(PNet_Y0, PNet_Y1)")
+#rdf =rdf.Filter("PNet_Ymin > 0.1")
 rdf_np = rdf.AsNumpy(["PNet_Y", "PNet_H"])
 print(rdf_np)
-ax.scatter(rdf_np["PNet_Y"], rdf_np["PNet_H"], s = 1, color='black', marker='o')
+#ax.scatter(rdf_np["PNet_Y"], rdf_np["PNet_H"], s = 1, color='black', marker='o')
 Ns = {"SR1": 0, "SR2": 0, "SB1": 0, "SB2": 0, "VS1": 0, "VS2": 0, "VB1": 0, "VS3": 0, "VS4": 0, "VB2": 0}
 for i in range(len(rdf_np["PNet_Y"])):
     pnet_y = rdf_np["PNet_Y"][i]
@@ -69,7 +69,9 @@ for region in Regions:
         fontsize=12, color='red'
     )
 print(Ns)
-#ax.set_title(f"2+1 Region Defination")
-#fig.savefig(f"Regions_2p1.png")
-ax.set_title(f"MX-{MX} MY-{MY} scattering distribution")
-fig.savefig(f"Regions_MX{MX}_MY{MY}_2p1.png")
+ax.set_xticks([Aux_score2_Y, Aux_score1_Y, L_score_Y, T_score_Y ])
+ax.set_yticks([Aux_score1_H, L_score_H, T_score_H ])
+ax.set_title(f"2+1 Region Defination")
+fig.savefig(f"Regions_2p1.png")
+#ax.set_title(f"MX-{MX} MY-{MY} scattering distribution")
+#fig.savefig(f"Regions_MX{MX}_MY{MY}_2p1.png")

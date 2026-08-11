@@ -19,11 +19,11 @@ bfit=0
 limits=0
 seed=42
 numtoys=100
-tol=5         # --cminDefaultMinimizerTolerance
+tol=0.5     # --cminDefaultMinimizerTolerance
 strat=0         # --cminDefaultMinimizerStrategy
 verbosity=3
-
-options=$(getopt -o "bl" --long "bfit,limits,seed:,numtoys:,fitdir:,fitdir;,strat:,verbosity:" -- "$@")
+mode=1p1
+options=$(getopt -o "bl" --long "bfit,limits,seed:,mode:,numtoys:,fitdir:,fitdir;,strat:,verbosity:" -- "$@")
 eval set -- "$options"
 
 while true; do
@@ -45,6 +45,10 @@ while true; do
         --seed)
             shift
             seed=$1
+            ;;
+        --mode)
+            shift
+            mode=$1
             ;;
         -n|--numtoys)
             shift
@@ -106,10 +110,21 @@ if [ $bfit = 1 ]; then
     # Check to see if the workspace with channel masks exists
     if [ ! -f "$wsm" ]; then 
         printf "RooWorkspace with channel masks does not exist, creating it now...\n"
-        (set -x; text2workspace.py $card --channel-masks -o $wsm)
+        #(set -x; text2workspace.py $card --channel-masks -o $wsm)
+        (set -x; text2workspace.py $card -o $wsm)
     fi
     echo "Performing blinded background-only fit"
-    (set -x; combine -D data_obs -M MultiDimFit --saveWorkspace -m 125 -d $wsm -v $verbosity --cminDefaultMinimizerStrategy $strat --cminDefaultMinimizerTolerance $tol --X-rtd MINIMIZER_MaxCalls=400000 --setParameters r=0 --freezeParameters "r" -n Snapshot)
+    #(set -x; combine -D data_obs -M MultiDimFit --saveWorkspace -m 125 -d $wsm -v $verbosity --cminDefaultMinimizerStrategy $strat --cminDefaultMinimizerTolerance $tol --X-rtd MINIMIZER_MaxCalls=4000000 --setParameters r=0 --freezeParameters "r" -n Snapshot)
+    if [[ $mode == 1p1 ]] ; then
+    #    (set -x; combine -D data_obs -M MultiDimFit --saveWorkspace -m 125 -d $wsm -v $verbosity --cminDefaultMinimizerStrategy $strat --cminDefaultMinimizerTolerance $tol --X-rtd MINIMIZER_MaxCalls=4000000 --setParameters r=0 --freezeParameters "r" -n Snapshot  --setParameterRanges QCD_Rc_1x1_par3=-5,5:QCD_Rc_1x1_par0=-5,5:QCD_Rc_1x1_par1=-5,5:QCD_Rc_1x1_par2=-5,5)
+        (set -x; combine -D data_obs -M MultiDimFit --saveWorkspace -m 125 -d $wsm -v $verbosity --cminDefaultMinimizerStrategy $strat --cminDefaultMinimizerTolerance $tol --X-rtd MINIMIZER_MaxCalls=4000000 --setParameters r=0 --freezeParameters "r" -n Snapshot)
+        #(set -x; combine -D data_obs -M MultiDimFit --saveWorkspace -m 125 -d $wsm -v $verbosity --cminDefaultMinimizerStrategy $strat --cminDefaultMinimizerTolerance $tol --X-rtd MINIMIZER_MaxCalls=400000 --setParameters r=0,QCD_Rc_1x1_par0=-0.00532684,QCD_Rc_1x1_par1=0.195695,QCD_Rc_1x1_par2=0.0368822,QCD_Rc_1x1_par3=-0.8941 --freezeParameters "r" -n Snapshot  --setParameterRanges QCD_Rc_1x1_par3=-1,1:QCD_Rc_1x1_par0=-1,1:QCD_Rc_1x1_par1=-1,1:QCD_Rc_1x1_par2=-1,1 )
+    elif [[ $mode == 2p1 ]] ; then
+        (set -x; combine -D data_obs -M MultiDimFit --saveWorkspace -m 125 -d $wsm -v $verbosity --cminDefaultMinimizerStrategy $strat --cminDefaultMinimizerTolerance $tol --X-rtd MINIMIZER_MaxCalls=400000 --setParameters r=0,QCD_Rc_1x1_par0=0.0261842,QCD_Rc_1x1_par1=-0.07,QCD_Rc_1x1_par2=0.2,QCD_Rc_1x1_par3=-0.5 --freezeParameters "r" -n Snapshot  )
+    fi
+    #(set -x; combine -D data_obs -M MultiDimFit --saveWorkspace -m 125 -d $wsm -v $verbosity --cminDefaultMinimizerStrategy $strat --cminDefaultMinimizerTolerance $tol --X-rtd MINIMIZER_MaxCalls=400000 --setParameters r=0 --freezeParameters "r" -n Snapshot  --setParameterRanges QCD_Rc_1x1_par3=-1,1:QCD_Rc_1x1_par0=-1,1:QCD_Rc_1x1_par1=-1,1:QCD_Rc_1x1_par2=-1,1 )
+    #(set -x; combine -D data_obs -M MultiDimFit --saveWorkspace -m 125 -d $wsm -v $verbosity --cminDefaultMinimizerStrategy $strat --cminDefaultMinimizerTolerance $tol --X-rtd MINIMIZER_MaxCalls=400000 --setParameters r=0 --freezeParameters "r" -n Snapshot )
+    #(set -x; combine -D data_obs -M GoodnessOfFit --algo saturated --saveWorkspace -m 125 -d $wsm -v $verbosity --cminDefaultMinimizerStrategy $strat --cminDefaultMinimizerTolerance $tol --X-rtd MINIMIZER_MaxCalls=400000 --setParameters r=0 --freezeParameters "r" -n Snapshot)
 
     printf "cd $cwd \n"
     cd $cwd

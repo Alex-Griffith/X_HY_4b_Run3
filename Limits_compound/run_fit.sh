@@ -19,7 +19,7 @@ bfit=0
 limits=0
 seed=42
 numtoys=100
-tol=5         # --cminDefaultMinimizerTolerance
+tol=0.5         # --cminDefaultMinimizerTolerance
 strat=0         # --cminDefaultMinimizerStrategy
 verbosity=3
 
@@ -109,7 +109,8 @@ if [ $bfit = 1 ]; then
         (set -x; text2workspace.py $card --channel-masks -o $wsm)
     fi
     echo "Performing blinded background-only fit"
-    (set -x; combine -D data_obs -M MultiDimFit --saveWorkspace -m 125 -d $wsm -v $verbosity --cminDefaultMinimizerStrategy $strat --cminDefaultMinimizerTolerance $tol --X-rtd MINIMIZER_MaxCalls=400000 --setParameters r=0 --freezeParameters "r" -n Snapshot)
+    #(set -x; combine -D data_obs -M MultiDimFit --saveWorkspace -m 125 -d $wsm -v $verbosity --cminDefaultMinimizerStrategy $strat --cminDefaultMinimizerTolerance $tol --X-rtd MINIMIZER_MaxCalls=400000 --setParameters r=0 --freezeParameters "r" -n Snapshot)
+    (set -x; combine -D data_obs -M MultiDimFit --saveWorkspace -m 125 -d $wsm -v $verbosity --cminDefaultMinimizerStrategy $strat --cminDefaultMinimizerTolerance $tol --X-rtd MINIMIZER_MaxCalls=400000 --setParameters r=0,QCD_Rc_2p1_1x1_par0=0.03,QCD_Rc_2p1_1x1_par1=-0.08,QCD_Rc_2p1_1x1_par2=0.2,QCD_Rc_2p1_1x1_par3=-0.4,QCD_Rc_1p1_1x1_par0=0.09,QCD_Rc_1p1_1x1_par1=11,QCD_Rc_1p1_1x1_par2=0.8,QCD_Rc_1p1_1x1_par3=-37 --freezeParameters "r" -n Snapshot)
 
     printf "cd $cwd \n"
     cd $cwd

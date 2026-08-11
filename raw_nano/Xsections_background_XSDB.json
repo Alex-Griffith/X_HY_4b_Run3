@@ -22,9 +22,9 @@
             "Zto2Q-4Jets_HT-800": 14.57
         },
         "MC_TTBarJets": {
-            "TTto4Q":  410.89,
-            "TTtoLNu2Q": 410.28,
-            "TTto2L2Nu": 102.41
+            "TTto4Q":  419.7,
+            "TTtoLNu2Q": 405.7,
+            "TTto2L2Nu": 98.0
         },
         "MC_HiggsJets": {
             "GluGluHto2B_M-125": 30.2,
